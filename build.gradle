@@ -59,7 +59,7 @@ dependencies {
     // WebSocket
     implementation 'org.springframework.boot:spring-boot-starter-websocket'
 
-    // Dotenv (.env 자동 로딩)
+    // Dotenv (..env 자동 로딩)
     implementation 'me.paulschwarz:spring-dotenv:4.0.0'
 
 
