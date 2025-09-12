@@ -33,6 +33,21 @@ spring:
         default_batch_fetch_size: 100  # N+1 문제 해결을 위한 배치 사이즈
         dialect: org.hibernate.dialect.MariaDBDialect  # MariaDB 전용 SQL 방언
 
+  # 이메일 발송 설정 (JavaMailSender가 참조)
+  mail:
+    host: ${SMTP_HOST}                     # 예: smtp.gmail.com / smtp.naver.com
+    port: ${SMTP_PORT}                     # 587(STARTTLS) 또는 465(SSL)
+    username: ${SMTP_USERNAME}             # SMTP 로그인 아이디
+    password: ${SMTP_PASSWORD}             # SMTP 비밀번호(또는 앱 비밀번호)
+    properties:
+      mail:
+        smtp:
+          auth: ${SMTP_AUTH:true}          # SMTP 인증 사용
+          starttls:
+            enable: ${SMTP_STARTTLS:true}  # 587 사용 시 보통 true
+          ssl:
+            enable: ${SMTP_SSL:false}      # 465 사용 시 true
+
   # Spring Security OAuth2 설정
   security:
     oauth2:
@@ -90,6 +105,16 @@ app:
     secret: ${JWT_SECRET}  # JWT 서명에 사용할 비밀키
     access-token-expiration-ms: ${JWT_ACCESS_TOKEN_EXPIRATION}  # 액세스 토큰 만료시간 (밀리초)
     refresh-token-expiration-ms: ${JWT_REFRESH_TOKEN_EXPIRATION}  # 리프레시 토큰 만료시간 (밀리초)
+
+  # 이메일 발신/제어 및 인증 링크 베이스 URL
+  mail:
+    from: ${SMTP_FROM:noreply@tropical.local}      # 이메일 From 주소
+    from-name: ${SMTP_FROM_NAME:TropiCal}          # 표시 이름
+    enabled: ${MAIL_ENABLED:true}                  # 메일 발송 on/off
+    redirect-to: ${MAIL_REDIRECT_TO:}              # (선택) 모든 수신자를 이 주소로 강제 리다이렉트
+    bcc: ${MAIL_BCC:}                              # (선택) 우리 팀 BCC 사본 (쉼표로 다중)
+    reply-to: ${MAIL_REPLY_TO:}                    # (선택) 회신 받을 주소
+  base-url: ${APP_BASE_URL:http://localhost:9005}  # 이메일 인증 링크 등에 사용할 백엔드 베이스 URL
 
   # OAuth2 로그인 후 리다이렉트 URL 설정
   oauth2-success-redirect-url: http://localhost:5005/dashboard  # 로그인 성공시 이동할 프론트엔드 URL
