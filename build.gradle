@@ -1,6 +1,8 @@
 plugins {
     id 'java'
+    // Spring Boot 플러그인: 실행 가능한 JAR, BOM 관리, 부트 플러그인 태스크 제공
     id 'org.springframework.boot' version '3.5.5'
+    // Spring 의존성 버전 일관성(BOM) 관리
     id 'io.spring.dependency-management' version '1.1.7'
 }
 
@@ -10,61 +12,72 @@ description = 'Tropical-backend'
 
 java {
     toolchain {
+        // 프로젝트 전역 Java 버전(빌드/런타임) 고정
         languageVersion = JavaLanguageVersion.of(17)
     }
 }
 
 configurations {
     compileOnly {
+        // Lombok 같은 컴파일 전용(런타임 미포함) 의존성이 애노테이션 프로세서 설정을 상속
         extendsFrom annotationProcessor
     }
 }
 
 repositories {
+    // 중앙 저장소 사용(회사 Nexus/Artifactory 없을 때 기본)
     mavenCentral()
 }
 
 dependencies {
 
-    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-    implementation 'org.springframework.boot:spring-boot-starter-web'
-    implementation 'org.springframework.boot:spring-boot-devtools'
+    // --- Spring 핵심 스타터 ---
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'  // JPA + Hibernate
+    implementation 'org.springframework.boot:spring-boot-starter-web'       // Spring MVC + Jackson(REST)
+    implementation 'org.springframework.boot:spring-boot-devtools'          // 자동 리스타트/LiveReload (개발 편의) *운영 비권장
 
-    // security & OAuth2
-    implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
-    implementation 'org.springframework.boot:spring-boot-starter-security'
+    // --- 보안 / 인증 ---
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-client' // OAuth2 클라이언트(구글/카카오/네이버)
+    implementation 'org.springframework.boot:spring-boot-starter-security'      // Spring Security (필터/인가/비밀번호 인코딩 등)
 
+    // --- Bean Validation ---
+    implementation 'org.springframework.boot:spring-boot-starter-validation'    // @Valid, @NotNull 등 검증
 
-    //Database
-    runtimeOnly 'com.h2database:h2'
-    runtimeOnly 'org.mariadb.jdbc:mariadb-java-client'
+    // --- 메일 발송 ---
+    implementation 'org.springframework.boot:spring-boot-starter-mail'          // JavaMailSender (SMTP 연동)
 
+    // --- 데이터베이스 드라이버 ---
+    runtimeOnly 'com.h2database:h2'                          // 인메모리 DB(로컬/테스트)
+    runtimeOnly 'org.mariadb.jdbc:mariadb-java-client'       // MariaDB 드라이버(운영/개발 DB)
 
-    compileOnly 'org.projectlombok:lombok'
-    annotationProcessor 'org.projectlombok:lombok'
-    testImplementation 'org.springframework.boot:spring-boot-starter-test'
-    testImplementation 'org.springframework.security:spring-security-test'
-    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    // --- Lombok (보일러플레이트 제거) ---
+    compileOnly 'org.projectlombok:lombok'                   // 컴파일 타임만 필요 (런타임 미포함)
+    annotationProcessor 'org.projectlombok:lombok'           // Lombok 애노테이션 처리기
 
-    // QueryDSL
-    implementation 'com.querydsl:querydsl-jpa:5.0.0:jakarta'
-    annotationProcessor 'com.querydsl:querydsl-apt:5.0.0:jakarta'
-    annotationProcessor 'jakarta.persistence:jakarta.persistence-api:3.1.0'
+    // --- 테스트 ---
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'  // JUnit/Jupiter + AssertJ 등
+    testImplementation 'org.springframework.security:spring-security-test'  // Security 테스트 유틸
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'            // JUnit 플랫폼 런처
 
-    // JWT
-    implementation 'io.jsonwebtoken:jjwt-api:0.12.3'
-    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.3'
-    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.3'
+    // --- QueryDSL (타입 안전한 JPQL) ---
+    implementation 'com.querydsl:querydsl-jpa:5.0.0:jakarta'                // Jakarta 기반 JPA 모듈
+    annotationProcessor 'com.querydsl:querydsl-apt:5.0.0:jakarta'           // Q-클래스 생성용 APT
+    annotationProcessor 'jakarta.persistence:jakarta.persistence-api:3.1.0' // JPA 메타 모델(APT용)
+    // * Q-클래스는 기본적으로 build/generated/sources/annotationProcessor/java/main 하위에 생성됨
 
-    // WebSocket
-    implementation 'org.springframework.boot:spring-boot-starter-websocket'
+    // --- JWT (jjwt 0.12.x: api/impl/jackson 3종 구성 필수) ---
+    implementation 'io.jsonwebtoken:jjwt-api:0.12.3'     // API (컴파일 타임)
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.3'       // 구현체 (런타임에만 필요)
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.3'    // Jackson 직렬화/역직렬화 지원
 
-    // Dotenv (..env 자동 로딩)
-    implementation 'me.paulschwarz:spring-dotenv:4.0.0'
+    // --- WebSocket (실시간 통신) ---
+    implementation 'org.springframework.boot:spring-boot-starter-websocket' // STOMP/SockJS 구성 시 사용
 
-
+    // --- Dotenv (.env 자동 로딩) ---
+    implementation 'me.paulschwarz:spring-dotenv:4.0.0'  // Spring 환경으로 .env 값 주입
 }
 
 tasks.named('test') {
+    // JUnit 5(Jupiter) 플랫폼 사용
     useJUnitPlatform()
 }
