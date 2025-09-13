@@ -36,7 +36,16 @@ import java.util.List;
  * @since 2025.09.13
  */
 @Entity
-@Table(name = "user")
+@Table(name = "user"
+        // // TODO: 운영 단계에서는 email, nickname, status, account_type 컬럼에 인덱스 추가 필요
+        // 성능 최적화 필요 시 아래 인덱스 주석 해제
+        // 자주 조회되는 컬럼(email, status, nickname)에 인덱스 추가로 조회 성능 향상
+        // indexes = {
+        //     @Index(name = "idx_user_email", columnList = "email"),
+        //     @Index(name = "idx_user_status", columnList = "status"),
+        //     @Index(name = "idx_user_nickname", columnList = "nickname")
+        // }
+)
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
@@ -262,7 +271,9 @@ public class User {
      * 동시에 연동할 수 있습니다.
      * </p>
      */
-    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    // orphanRemoval 제거: 서비스에서 명시적 삭제 정책으로 변경
+    // @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true) // 기존 코드
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
     @Builder.Default
     private List<SocialAccount> socialAccounts = new ArrayList<>();
 
@@ -271,7 +282,9 @@ public class User {
      *
      * <p>필수 동의와 선택 동의 정보를 모두 포함합니다.</p>
      */
-    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    // orphanRemoval 제거: GDPR 준수를 위한 명시적 개인정보 삭제 정책
+    // @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true) // 기존 코드
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
     @Builder.Default
     private List<UserConsent> userConsents = new ArrayList<>();
 
