@@ -47,7 +47,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-mail'          // JavaMailSender (SMTP 연동)
 
     // --- 데이터베이스 드라이버 ---
-    runtimeOnly 'com.h2database:h2'                          // 인메모리 DB(로컬/테스트)
+    // runtimeOnly 'com.h2database:h2'                          // 인메모리 DB(로컬/테스트)
     runtimeOnly 'org.mariadb.jdbc:mariadb-java-client'       // MariaDB 드라이버(운영/개발 DB)
 
     // --- Lombok (보일러플레이트 제거) ---
