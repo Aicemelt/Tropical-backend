@@ -141,6 +141,6 @@ cors:
 # ===============================
 logging:
   level:
-    com.aicemelt.warnupgrade: DEBUG  # 애플리케이션 패키지의 로그 레벨 (개발시 DEBUG 권장)
+    com.tropical.backend: DEBUG  # 애플리케이션 패키지의 로그 레벨 (개발시 DEBUG 권장)
     org.springframework.security: INFO  # Spring Security 로그 레벨
     org.hibernate.SQL: INFO  # Hibernate SQL 로그 레벨
