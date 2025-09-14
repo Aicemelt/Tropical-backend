@@ -94,13 +94,13 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Public 엔드포인트 (인증 불필요)
                         .requestMatchers(
-                                "/api/health",           // 헬스 체크
-                                "/api/auth/register",    // 회원가입
-                                "/api/auth/verify",      // 이메일 인증
-                                "/api/auth/login",       // 로그인
-                                "/api/auth/refresh",     // 토큰 갱신
-                                "/login/**",             // OAuth2 로그인 경로
-                                "/oauth2/**"             // OAuth2 콜백 경로
+                                "/api/health",                 // 헬스 체크
+                                "/api/auth/signup",            // 회원가입
+                                "/api/auth/verify/**",         // 이메일 인증 (하위 경로 포함)
+                                "/api/auth/login",             // 로그인
+                                "/api/auth/token/refresh",     // 토큰 갱신
+                                "/login/**",                   // OAuth2 로그인 경로
+                                "/oauth2/**"                   // OAuth2 콜백 경로
                         ).permitAll()
 
                         // 나머지 모든 요청은 인증 필요

@@ -39,7 +39,7 @@ import java.util.Optional;
  * </ul>
  *
  * @author 왕택준
- * @version 0.1
+ * @version 0.2
  * @since 2025.09.13
  */
 @Slf4j
@@ -192,7 +192,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
      *
      * <p>
      * 특정 경로에 대해서는 JWT 인증 필터를 건너뛸 수 있습니다.
-     * 현재는 모든 요청에 적용하지만, 필요시 제외 경로를 추가할 수 있습니다.
+     * Public 엔드포인트들은 JWT 필터를 거치지 않도록 설정되어 있습니다.
      * </p>
      *
      * @param request HTTP 요청 객체
@@ -202,16 +202,22 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
 
-        // JWT 필터를 적용하지 않을 경로들
+        // JWT 필터를 적용하지 않을 경로들 (Public 엔드포인트)
         return path.equals("/") ||
                 path.startsWith("/api/test") ||
                 path.startsWith("/api/health") ||
                 path.startsWith("/h2-console") ||
-                path.startsWith("/actuator");
+                path.startsWith("/actuator") ||
+                // === 인증이 필요없는 Auth 엔드포인트들 ===
+                path.equals("/api/auth/signup") ||           // 회원가입
+                path.startsWith("/api/auth/verify") ||       // 이메일 인증
+                path.equals("/api/auth/login") ||            // 로그인
+                path.equals("/api/auth/token/refresh") ||    // 토큰 갱신
+                path.startsWith("/login") ||                 // OAuth2 로그인
+                path.startsWith("/oauth2");                  // OAuth2 콜백
 
-        // 인증이 필요한 경로는 SecurityConfig에서 별도 관리
-        // /api/auth/signup, /api/auth/login 등은 permitAll()로 처리하되
-        // JWT 필터는 통과시켜서 토큰이 있으면 인증 정보 설정
+        // 참고: SecurityConfig에서 permitAll()로 설정된 경로들과 동일하게 유지해야 함
+        // 이렇게 하면 Public 엔드포인트는 JWT 필터를 완전히 건너뛰어서 성능상 이점이 있음
     }
 
     /**
