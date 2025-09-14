@@ -3,36 +3,43 @@ package com.tropical.backend.auth.controller;
 import com.tropical.backend.auth.dto.request.LoginRequest;
 import com.tropical.backend.auth.dto.request.OnboardingRequest;
 import com.tropical.backend.auth.dto.request.SignupRequest;
+import com.tropical.backend.auth.dto.response.TokenResponse;
 import com.tropical.backend.auth.dto.response.UserResponse;
 import com.tropical.backend.auth.entity.User;
 import com.tropical.backend.auth.service.UserConsentService;
 import com.tropical.backend.auth.service.UserService;
+import com.tropical.backend.config.JwtAuthenticationFilter;
+import com.tropical.backend.config.JwtTokenProvider;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.Date;
 import java.util.Map;
 
 /**
- * 인증 관련 API 컨트롤러
+ * JWT 기반 인증 API 컨트롤러
  *
  * <p>
- * 로컬 계정 회원가입, 로그인, 온보딩 등 사용자 인증과 관련된
- * REST API 엔드포인트를 제공합니다.
+ * JWT 토큰을 사용하는 로컬 계정 회원가입, 로그인, 온보딩 등
+ * 사용자 인증과 관련된 REST API 엔드포인트를 제공합니다.
  * </p>
  *
  * <p>주요 기능:</p>
  * <ul>
- *   <li>로컬 계정 회원가입 및 이메일 인증</li>
- *   <li>로컬 계정 로그인 및 인증</li>
- *   <li>온보딩 프로세스 (필수/선택 동의 처리)</li>
+ *   <li>로컬 계정 회원가입</li>
+ *   <li>JWT 기반 로그인 및 토큰 발급</li>
+ *   <li>온보딩 프로세스 (JWT 인증 필요)</li>
  *   <li>사용자 인증 상태 확인</li>
+ *   <li>로그아웃 처리</li>
  * </ul>
  *
  * @author 왕택준
- * @version 0.1
+ * @version 0.2
  * @since 2025.09.13
  */
 @RestController
@@ -43,17 +50,19 @@ public class AuthController {
 
     private final UserService userService;
     private final UserConsentService userConsentService;
+    private final JwtTokenProvider jwtTokenProvider;
 
     /**
      * 로컬 계정 회원가입
      *
      * <p>
      * 이메일과 비밀번호를 사용하는 로컬 계정을 생성합니다.
-     * 회원가입 성공 후 이메일 인증이 필요하며, 온보딩 페이지로 리다이렉트됩니다.
+     * 회원가입 성공 후 JWT 토큰을 발급하여 자동 로그인 처리합니다.
+     * 온보딩이 필요한 상태로 응답합니다.
      * </p>
      *
      * @param signupRequest 회원가입 요청 정보 (이메일, 비밀번호, 닉네임)
-     * @return 생성된 사용자 정보와 온보딩 필요 상태
+     * @return JWT 토큰과 사용자 정보, 온보딩 필요 상태
      */
     @PostMapping("/signup")
     public ResponseEntity<?> signup(@Valid @RequestBody SignupRequest signupRequest) {
@@ -68,12 +77,27 @@ public class AuthController {
                     signupRequest.getNickname()
             );
 
+            // JWT 토큰 생성
+            String accessToken = jwtTokenProvider.createAccessToken(user.getId(), user.getEmail());
+            String refreshToken = jwtTokenProvider.createRefreshToken(user.getId());
+
+            // Access Token 만료 시간 계산
+            Date expirationDate = jwtTokenProvider.getExpirationFromToken(accessToken);
+            LocalDateTime expiresAt = expirationDate.toInstant()
+                    .atZone(ZoneId.systemDefault())
+                    .toLocalDateTime();
+
+            // 응답 생성
+            TokenResponse.TokenResponseWithUser response = TokenResponse.withUser(
+                    accessToken, refreshToken, expiresAt, UserResponse.from(user)
+            );
+
             log.info("로컬 계정 회원가입 성공 - 사용자 ID: {}", user.getId());
 
             return ResponseEntity.ok(Map.of(
                     "success", true,
                     "message", "회원가입이 완료되었습니다. 온보딩을 진행해주세요.",
-                    "user", UserResponse.from(user),
+                    "data", response,
                     "nextStep", "onboarding"
             ));
 
@@ -93,12 +117,12 @@ public class AuthController {
      * 로컬 계정 로그인
      *
      * <p>
-     * 이메일과 비밀번호를 검증하여 로컬 계정 로그인을 처리합니다.
-     * 로그인 성공 시 사용자 정보와 온보딩 완료 상태를 반환합니다.
+     * 이메일과 비밀번호를 검증하여 JWT 토큰을 발급합니다.
+     * 로그인 성공 시 사용자 정보와 온보딩 완료 상태를 함께 반환합니다.
      * </p>
      *
      * @param loginRequest 로그인 요청 정보 (이메일, 비밀번호)
-     * @return 로그인 사용자 정보 및 인증 상태
+     * @return JWT 토큰과 사용자 정보 및 인증 상태
      */
     @PostMapping("/login")
     public ResponseEntity<?> login(@Valid @RequestBody LoginRequest loginRequest) {
@@ -132,18 +156,33 @@ public class AuthController {
                 ));
             }
 
+            // JWT 토큰 생성
+            String accessToken = jwtTokenProvider.createAccessToken(user.getId(), user.getEmail());
+            String refreshToken = jwtTokenProvider.createRefreshToken(user.getId());
+
+            // Access Token 만료 시간 계산
+            Date expirationDate = jwtTokenProvider.getExpirationFromToken(accessToken);
+            LocalDateTime expiresAt = expirationDate.toInstant()
+                    .atZone(ZoneId.systemDefault())
+                    .toLocalDateTime();
+
             // 마지막 로그인 시간 업데이트
             userService.updateLastLoginTime(user.getId());
 
             // 온보딩 완료 여부 확인
             String nextStep = user.isOnboardingCompleted() ? "dashboard" : "onboarding";
 
+            // 응답 생성
+            TokenResponse.TokenResponseWithUser response = TokenResponse.withUser(
+                    accessToken, refreshToken, expiresAt, UserResponse.from(user)
+            );
+
             log.info("로컬 계정 로그인 성공 - 사용자 ID: {}, 다음 단계: {}", user.getId(), nextStep);
 
             return ResponseEntity.ok(Map.of(
                     "success", true,
                     "message", "로그인이 완료되었습니다",
-                    "user", UserResponse.from(user),
+                    "data", response,
                     "nextStep", nextStep
             ));
 
@@ -160,21 +199,28 @@ public class AuthController {
     }
 
     /**
-     * 온보딩 완료 처리
+     * 온보딩 완료 처리 (JWT 인증 필요)
      *
      * <p>
-     * 회원가입 후 필수 동의와 선택 동의를 처리하여 온보딩을 완료합니다.
-     * 필수 동의가 모두 완료되어야 온보딩이 성공적으로 처리됩니다.
+     * JWT 토큰으로 인증된 사용자의 필수 동의와 선택 동의를 처리하여 온보딩을 완료합니다.
+     * SecurityContext에서 현재 인증된 사용자 정보를 추출합니다.
      * </p>
      *
-     * @param userId            온보딩 완료할 사용자 ID (임시로 RequestParam 사용)
      * @param onboardingRequest 동의 정보 (필수 동의, 선택 동의)
      * @return 온보딩 완료 결과
      */
     @PostMapping("/onboarding")
-    public ResponseEntity<?> completeOnboarding(
-            @RequestParam Long userId,
-            @Valid @RequestBody OnboardingRequest onboardingRequest) {
+    public ResponseEntity<?> completeOnboarding(@Valid @RequestBody OnboardingRequest onboardingRequest) {
+
+        // JWT 필터에서 설정한 SecurityContext에서 현재 사용자 ID 추출
+        Long userId = JwtAuthenticationFilter.getCurrentUserId();
+        if (userId == null) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "message", "인증 정보를 찾을 수 없습니다",
+                    "errorCode", "AUTHENTICATION_REQUIRED"
+            ));
+        }
 
         log.info("온보딩 완료 요청 - 사용자 ID: {}", userId);
 
@@ -229,18 +275,28 @@ public class AuthController {
     }
 
     /**
-     * 사용자 인증 상태 확인
+     * 사용자 인증 상태 확인 (JWT 인증 필요)
      *
      * <p>
-     * 현재 사용자의 인증 상태와 온보딩 완료 여부를 확인합니다.
-     * JWT 토큰 구현 전까지는 사용자 ID로 임시 구현합니다.
+     * 현재 JWT 토큰으로 인증된 사용자의 상태와 온보딩 완료 여부를 확인합니다.
+     * SecurityContext에서 인증 정보를 추출하여 사용자 상태를 반환합니다.
      * </p>
      *
-     * @param userId 확인할 사용자 ID (임시로 RequestParam 사용)
      * @return 사용자 인증 상태 정보
      */
     @GetMapping("/status")
-    public ResponseEntity<?> getAuthStatus(@RequestParam Long userId) {
+    public ResponseEntity<?> getAuthStatus() {
+
+        // JWT 필터에서 설정한 SecurityContext에서 현재 사용자 ID 추출
+        Long userId = JwtAuthenticationFilter.getCurrentUserId();
+        if (userId == null) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "message", "인증 정보를 찾을 수 없습니다",
+                    "authenticated", false
+            ));
+        }
+
         log.debug("사용자 인증 상태 확인 - 사용자 ID: {}", userId);
 
         try {
@@ -268,6 +324,116 @@ public class AuthController {
                     "success", false,
                     "message", e.getMessage(),
                     "authenticated", false
+            ));
+        }
+    }
+
+    /**
+     * 로그아웃 처리 (JWT 인증 필요)
+     *
+     * <p>
+     * 클라이언트 측에서 토큰을 삭제하도록 안내하는 응답을 반환합니다.
+     * JWT는 Stateless하므로 서버에서는 토큰을 무효화할 수 없습니다.
+     * 추후 Redis 등을 사용한 토큰 블랙리스트 기능을 추가할 수 있습니다.
+     * </p>
+     *
+     * @return 로그아웃 완료 메시지
+     */
+    @PostMapping("/logout")
+    public ResponseEntity<?> logout() {
+
+        Long userId = JwtAuthenticationFilter.getCurrentUserId();
+        log.info("로그아웃 요청 - 사용자 ID: {}", userId);
+
+        // SecurityContext 클리어
+        JwtAuthenticationFilter.clearSecurityContext();
+
+        return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "로그아웃이 완료되었습니다",
+                "instruction", "클라이언트에서 저장된 토큰을 삭제해주세요"
+        ));
+    }
+
+    /**
+     * Access Token 갱신 (Refresh Token 필요)
+     *
+     * <p>
+     * 만료된 Access Token을 Refresh Token을 사용하여 갱신합니다.
+     * Refresh Token의 유효성을 검증한 후 새로운 Access Token을 발급합니다.
+     * </p>
+     *
+     * @param refreshTokenRequest Refresh Token 정보
+     * @return 새로운 Access Token
+     */
+    @PostMapping("/token/refresh")
+    public ResponseEntity<?> refreshToken(@RequestBody Map<String, String> refreshTokenRequest) {
+
+        String refreshToken = refreshTokenRequest.get("refreshToken");
+
+        if (refreshToken == null || refreshToken.trim().isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "message", "Refresh Token이 필요합니다",
+                    "errorCode", "REFRESH_TOKEN_REQUIRED"
+            ));
+        }
+
+        log.info("토큰 갱신 요청");
+
+        try {
+            // Refresh Token 검증
+            if (!jwtTokenProvider.validateToken(refreshToken)) {
+                log.warn("유효하지 않은 Refresh Token으로 갱신 시도");
+                return ResponseEntity.badRequest().body(Map.of(
+                        "success", false,
+                        "message", "유효하지 않은 Refresh Token입니다",
+                        "errorCode", "INVALID_REFRESH_TOKEN"
+                ));
+            }
+
+            // Refresh Token 타입 확인
+            if (!jwtTokenProvider.isRefreshToken(refreshToken)) {
+                log.warn("Refresh Token이 아닌 토큰으로 갱신 시도");
+                return ResponseEntity.badRequest().body(Map.of(
+                        "success", false,
+                        "message", "Refresh Token이 아닙니다",
+                        "errorCode", "INVALID_TOKEN_TYPE"
+                ));
+            }
+
+            // 사용자 정보 추출 및 검증
+            Long userId = jwtTokenProvider.getUserIdFromToken(refreshToken);
+            User user = userService.findActiveUserById(userId)
+                    .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다"));
+
+            // 새로운 Access Token 생성
+            String newAccessToken = jwtTokenProvider.createAccessToken(user.getId(), user.getEmail());
+
+            // Access Token 만료 시간 계산
+            Date expirationDate = jwtTokenProvider.getExpirationFromToken(newAccessToken);
+            LocalDateTime expiresAt = expirationDate.toInstant()
+                    .atZone(ZoneId.systemDefault())
+                    .toLocalDateTime();
+
+            // 토큰 응답 생성
+            TokenResponse response = TokenResponse.of(newAccessToken, refreshToken, expiresAt);
+
+            log.info("토큰 갱신 성공 - 사용자 ID: {}", userId);
+
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "message", "토큰이 갱신되었습니다",
+                    "data", response
+            ));
+
+        } catch (Exception e) {
+            log.warn("토큰 갱신 실패: {}", e.getMessage());
+
+            return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "message", "토큰 갱신에 실패했습니다",
+                    "errorCode", "TOKEN_REFRESH_FAILED"
             ));
         }
     }

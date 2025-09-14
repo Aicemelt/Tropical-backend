@@ -93,7 +93,9 @@ public class User {
      */
     @Column(name = "email_verified", nullable = false)
     @Builder.Default
-    private Boolean emailVerified = false;
+    // TODO: EmailService 구현 완료 후 기본값을 false로 변경하고 이메일 인증 플로우 활성화
+    // private Boolean emailVerified = false;
+    private Boolean emailVerified = true; // 임시: JWT 로그인 테스트를 위해 true로 설정
 
     /**
      * 계정 타입 구분
@@ -387,7 +389,8 @@ public class User {
                 .passwordHash(passwordHash)
                 .nickname(nickname)
                 .accountType(AccountType.LOCAL)
-                .emailVerified(false)
+                // TODO: EmailService 구현 완료 후 이메일 인증 플로우 활성화 시 주석 해제
+                // .emailVerified(false)  // 이메일 인증 필요한 상태로 생성
                 .build();
     }
 
