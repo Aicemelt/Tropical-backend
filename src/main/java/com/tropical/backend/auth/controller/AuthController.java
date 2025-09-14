@@ -8,8 +8,10 @@ import com.tropical.backend.auth.dto.response.UserResponse;
 import com.tropical.backend.auth.entity.User;
 import com.tropical.backend.auth.service.UserConsentService;
 import com.tropical.backend.auth.service.UserService;
+import com.tropical.backend.common.util.CookieUtil;
 import com.tropical.backend.config.auth.JwtAuthenticationFilter;
 import com.tropical.backend.config.auth.JwtTokenProvider;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,25 +24,27 @@ import java.util.Date;
 import java.util.Map;
 
 /**
- * JWT 기반 인증 API 컨트롤러
+ * JWT 기반 인증 API 컨트롤러 (쿠키 지원 추가)
  *
  * <p>
  * JWT 토큰을 사용하는 로컬 계정 회원가입, 로그인, 온보딩 등
  * 사용자 인증과 관련된 REST API 엔드포인트를 제공합니다.
+ * Authorization 헤더와 HttpOnly 쿠키를 모두 지원하는 하이브리드 방식입니다.
  * </p>
  *
  * <p>주요 기능:</p>
  * <ul>
- *   <li>로컬 계정 회원가입</li>
- *   <li>JWT 기반 로그인 및 토큰 발급</li>
+ *   <li>로컬 계정 회원가입 (쿠키 + 헤더 병행 토큰 제공)</li>
+ *   <li>JWT 기반 로그인 및 토큰 발급 (쿠키 + 헤더 병행)</li>
  *   <li>온보딩 프로세스 (JWT 인증 필요)</li>
  *   <li>사용자 인증 상태 확인</li>
- *   <li>로그아웃 처리</li>
+ *   <li>로그아웃 처리 (쿠키 삭제 포함)</li>
+ *   <li>토큰 갱신 (쿠키 업데이트 포함)</li>
  * </ul>
  *
  * @author 왕택준
- * @version 0.2
- * @since 2025.09.13
+ * @version 0.3
+ * @since 2025.09.14
  */
 @RestController
 @RequestMapping("/api/auth")
@@ -53,19 +57,21 @@ public class AuthController {
     private final JwtTokenProvider jwtTokenProvider;
 
     /**
-     * 로컬 계정 회원가입
+     * 로컬 계정 회원가입 (쿠키 지원 추가)
      *
      * <p>
      * 이메일과 비밀번호를 사용하는 로컬 계정을 생성합니다.
-     * 회원가입 성공 후 JWT 토큰을 발급하여 자동 로그인 처리합니다.
-     * 온보딩이 필요한 상태로 응답합니다.
+     * 회원가입 성공 후 JWT 토큰을 발급하여 자동 로그인 처리하며,
+     * Authorization 헤더용 응답과 함께 HttpOnly 쿠키로도 토큰을 제공합니다.
      * </p>
      *
      * @param signupRequest 회원가입 요청 정보 (이메일, 비밀번호, 닉네임)
+     * @param response      HTTP 응답 객체 (쿠키 설정용)
      * @return JWT 토큰과 사용자 정보, 온보딩 필요 상태
      */
     @PostMapping("/signup")
-    public ResponseEntity<?> signup(@Valid @RequestBody SignupRequest signupRequest) {
+    public ResponseEntity<?> signup(@Valid @RequestBody SignupRequest signupRequest,
+                                    HttpServletResponse response) {
         log.info("로컬 계정 회원가입 요청 - 이메일: {}, 닉네임: {}",
                 signupRequest.getEmail(), signupRequest.getNickname());
 
@@ -87,17 +93,24 @@ public class AuthController {
                     .atZone(ZoneId.systemDefault())
                     .toLocalDateTime();
 
-            // 응답 생성
-            TokenResponse.TokenResponseWithUser response = TokenResponse.withUser(
+            // 쿠키로 토큰 설정 (헤더와 병행)
+            int accessMaxAge = jwtTokenProvider.getAccessMaxAge();
+            int refreshMaxAge = jwtTokenProvider.getRefreshMaxAge();
+
+            response.addCookie(CookieUtil.build("ACCESS_TOKEN", accessToken, accessMaxAge));
+            response.addCookie(CookieUtil.build("REFRESH_TOKEN", refreshToken, refreshMaxAge));
+
+            // 응답 생성 (기존 헤더 방식도 유지)
+            TokenResponse.TokenResponseWithUser tokenResponse = TokenResponse.withUser(
                     accessToken, refreshToken, expiresAt, UserResponse.from(user)
             );
 
-            log.info("로컬 계정 회원가입 성공 - 사용자 ID: {}", user.getId());
+            log.info("로컬 계정 회원가입 성공 (쿠키+헤더) - 사용자 ID: {}", user.getId());
 
             return ResponseEntity.ok(Map.of(
                     "success", true,
                     "message", "회원가입이 완료되었습니다. 온보딩을 진행해주세요.",
-                    "data", response,
+                    "data", tokenResponse,
                     "nextStep", "onboarding"
             ));
 
@@ -114,18 +127,21 @@ public class AuthController {
     }
 
     /**
-     * 로컬 계정 로그인
+     * 로컬 계정 로그인 (쿠키 지원 추가)
      *
      * <p>
      * 이메일과 비밀번호를 검증하여 JWT 토큰을 발급합니다.
-     * 로그인 성공 시 사용자 정보와 온보딩 완료 상태를 함께 반환합니다.
+     * 로그인 성공 시 사용자 정보와 온보딩 완료 상태를 함께 반환하며,
+     * Authorization 헤더용 응답과 함께 HttpOnly 쿠키로도 토큰을 제공합니다.
      * </p>
      *
      * @param loginRequest 로그인 요청 정보 (이메일, 비밀번호)
+     * @param response     HTTP 응답 객체 (쿠키 설정용)
      * @return JWT 토큰과 사용자 정보 및 인증 상태
      */
     @PostMapping("/login")
-    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest loginRequest) {
+    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest loginRequest,
+                                   HttpServletResponse response) {
         log.info("로컬 계정 로그인 요청 - 이메일: {}", loginRequest.getEmail());
 
         try {
@@ -166,29 +182,35 @@ public class AuthController {
                     .atZone(ZoneId.systemDefault())
                     .toLocalDateTime();
 
+            // 쿠키로 토큰 설정 (헤더와 병행)
+            int accessMaxAge = jwtTokenProvider.getAccessMaxAge();
+            int refreshMaxAge = jwtTokenProvider.getRefreshMaxAge();
+
+            response.addCookie(CookieUtil.build("ACCESS_TOKEN", accessToken, accessMaxAge));
+            response.addCookie(CookieUtil.build("REFRESH_TOKEN", refreshToken, refreshMaxAge));
+
             // 마지막 로그인 시간 업데이트
             userService.updateLastLoginTime(user.getId());
 
             // 온보딩 완료 여부 확인
             String nextStep = user.isOnboardingCompleted() ? "dashboard" : "onboarding";
 
-            // 응답 생성
-            TokenResponse.TokenResponseWithUser response = TokenResponse.withUser(
+            // 응답 생성 (기존 헤더 방식도 유지)
+            TokenResponse.TokenResponseWithUser tokenResponse = TokenResponse.withUser(
                     accessToken, refreshToken, expiresAt, UserResponse.from(user)
             );
 
-            log.info("로컬 계정 로그인 성공 - 사용자 ID: {}, 다음 단계: {}", user.getId(), nextStep);
+            log.info("로컬 계정 로그인 성공 (쿠키+헤더) - 사용자 ID: {}, 다음 단계: {}", user.getId(), nextStep);
 
             return ResponseEntity.ok(Map.of(
                     "success", true,
                     "message", "로그인이 완료되었습니다",
-                    "data", response,
+                    "data", tokenResponse,
                     "nextStep", nextStep
             ));
 
         } catch (IllegalArgumentException e) {
-            log.warn("로컬 계정 로그인 실패 - 이메일: {}, 사유: {}",
-                    loginRequest.getEmail(), e.getMessage());
+            log.warn("로컬 계정 로그인 실패 - 이메일: {}, 사유: {}", loginRequest.getEmail(), e.getMessage());
 
             return ResponseEntity.badRequest().body(Map.of(
                     "success", false,
@@ -329,21 +351,25 @@ public class AuthController {
     }
 
     /**
-     * 로그아웃 처리 (JWT 인증 필요)
+     * 로그아웃 처리 (쿠키 삭제 포함)
      *
      * <p>
-     * 클라이언트 측에서 토큰을 삭제하도록 안내하는 응답을 반환합니다.
-     * JWT는 Stateless하므로 서버에서는 토큰을 무효화할 수 없습니다.
-     * 추후 Redis 등을 사용한 토큰 블랙리스트 기능을 추가할 수 있습니다.
+     * JWT 토큰 쿠키를 만료시키고 SecurityContext를 클리어합니다.
+     * 클라이언트에서도 localStorage의 토큰을 삭제해야 완전한 로그아웃이 됩니다.
      * </p>
      *
+     * @param response HTTP 응답 객체 (쿠키 삭제용)
      * @return 로그아웃 완료 메시지
      */
     @PostMapping("/logout")
-    public ResponseEntity<?> logout() {
+    public ResponseEntity<?> logout(HttpServletResponse response) {
 
         Long userId = JwtAuthenticationFilter.getCurrentUserId();
         log.info("로그아웃 요청 - 사용자 ID: {}", userId);
+
+        // JWT 토큰 쿠키 삭제
+        response.addCookie(CookieUtil.expire("ACCESS_TOKEN"));
+        response.addCookie(CookieUtil.expire("REFRESH_TOKEN"));
 
         // SecurityContext 클리어
         JwtAuthenticationFilter.clearSecurityContext();
@@ -356,18 +382,21 @@ public class AuthController {
     }
 
     /**
-     * Access Token 갱신 (Refresh Token 필요)
+     * Access Token 갱신 (쿠키 업데이트 포함)
      *
      * <p>
      * 만료된 Access Token을 Refresh Token을 사용하여 갱신합니다.
-     * Refresh Token의 유효성을 검증한 후 새로운 Access Token을 발급합니다.
+     * Refresh Token의 유효성을 검증한 후 새로운 Access Token을 발급하며,
+     * 응답과 함께 쿠키도 업데이트합니다.
      * </p>
      *
      * @param refreshTokenRequest Refresh Token 정보
+     * @param response            HTTP 응답 객체 (쿠키 업데이트용)
      * @return 새로운 Access Token
      */
     @PostMapping("/token/refresh")
-    public ResponseEntity<?> refreshToken(@RequestBody Map<String, String> refreshTokenRequest) {
+    public ResponseEntity<?> refreshToken(@RequestBody Map<String, String> refreshTokenRequest,
+                                          HttpServletResponse response) {
 
         String refreshToken = refreshTokenRequest.get("refreshToken");
 
@@ -416,15 +445,19 @@ public class AuthController {
                     .atZone(ZoneId.systemDefault())
                     .toLocalDateTime();
 
-            // 토큰 응답 생성
-            TokenResponse response = TokenResponse.of(newAccessToken, refreshToken, expiresAt);
+            // 새로운 Access Token 쿠키 설정
+            int accessMaxAge = jwtTokenProvider.getAccessMaxAge();
+            response.addCookie(CookieUtil.build("ACCESS_TOKEN", newAccessToken, accessMaxAge));
 
-            log.info("토큰 갱신 성공 - 사용자 ID: {}", userId);
+            // 토큰 응답 생성
+            TokenResponse tokenResponse = TokenResponse.of(newAccessToken, refreshToken, expiresAt);
+
+            log.info("토큰 갱신 성공 (쿠키+헤더) - 사용자 ID: {}", userId);
 
             return ResponseEntity.ok(Map.of(
                     "success", true,
                     "message", "토큰이 갱신되었습니다",
-                    "data", response
+                    "data", tokenResponse
             ));
 
         } catch (Exception e) {
