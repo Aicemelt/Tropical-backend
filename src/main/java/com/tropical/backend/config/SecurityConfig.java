@@ -1,176 +1,119 @@
 package com.tropical.backend.config;
 
+import com.tropical.backend.config.security.CustomAccessDeniedHandler;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.web.cors.CorsConfiguration;
-import org.springframework.web.cors.CorsConfigurationSource;
-import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-
-import java.util.Arrays;
 
 /**
- * Spring Security JWT 인증 설정
+ * Spring Security 보안 설정 클래스
  *
  * <p>
- * JWT 기반 인증 시스템을 위한 Spring Security 설정입니다.
- * 세션을 사용하지 않는 Stateless 방식으로 구성되어 있습니다.
+ * JWT 기반 인증 시스템과 CORS 설정을 통합한 Spring Security 보안 구성입니다.
+ * 세션을 사용하지 않는 Stateless 방식으로 구성되어 있으며,
+ * 인증 실패(401)와 권한 부족(403) 상황을 일관된 JSON 응답으로 처리합니다.
  * </p>
  *
  * <p>주요 기능:</p>
  * <ul>
- *   <li>JWT 인증 필터 등록</li>
- *   <li>인증이 필요한/불필요한 엔드포인트 구분</li>
- *   <li>인증 실패 시 401 응답 처리</li>
- *   <li>CORS 설정으로 프론트엔드 연동 지원</li>
- *   <li>PasswordEncoder Bean 제공</li>
+ *   <li>JWT 인증 필터 체인 구성</li>
+ *   <li>API 엔드포인트별 인증/인가 규칙 정의</li>
+ *   <li>CORS 설정 통합 적용</li>
+ *   <li>401/403 예외 처리 핸들러 바인딩</li>
+ *   <li>CSRF 비활성화 및 세션 Stateless 설정</li>
  * </ul>
  *
  * @author 왕택준
  * @version 0.2
- * @since 2025.09.13
+ * @since 2025.09.14
  */
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-    private final JwtAuthenticationFilter jwtAuthenticationFilter;
-    private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;      // JWT 인증 필터
+    private final AuthenticationEntryPoint jwtAuthenticationEntryPoint; // 401 인증 실패 처리
+    private final CustomAccessDeniedHandler customAccessDeniedHandler;  // 403 권한 부족 처리
 
     /**
      * Spring Security 필터 체인 설정
      *
      * <p>
-     * JWT 기반 인증을 위한 필터 체인을 구성합니다.
-     * 세션을 사용하지 않고 매 요청마다 JWT 토큰을 검증합니다.
+     * JWT 기반 인증을 위한 보안 필터 체인을 구성합니다.
+     * API 서버 특성에 맞춰 CSRF를 비활성화하고 세션을 사용하지 않도록 설정하며,
+     * CorsConfig에서 정의한 CORS 정책을 적용합니다.
      * </p>
      *
-     * @param http HttpSecurity 객체
-     * @return 설정된 SecurityFilterChain
-     * @throws Exception 설정 중 발생할 수 있는 예외
+     * <p>보안 정책:</p>
+     * <ul>
+     *   <li>CSRF: API 서버이므로 비활성화</li>
+     *   <li>세션: JWT 기반이므로 STATELESS 모드</li>
+     *   <li>CORS: CorsConfig Bean의 설정 자동 적용</li>
+     *   <li>필터 순서: JWT 필터를 UsernamePasswordAuthenticationFilter 앞에 배치</li>
+     * </ul>
+     *
+     * <p>인가 규칙:</p>
+     * <ul>
+     *   <li>Public 엔드포인트: /api/health, /api/auth/*, OAuth2 경로</li>
+     *   <li>인증 필요: 나머지 모든 API 엔드포인트</li>
+     * </ul>
+     *
+     * @param http HttpSecurity 설정 객체
+     * @return 구성된 SecurityFilterChain
+     * @throws Exception 보안 설정 중 발생할 수 있는 예외
      */
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                // CSRF 비활성화 (JWT 사용 시 불필요)
+                // CSRF 비활성화: JWT 기반 API 서버에서는 불필요
                 .csrf(csrf -> csrf.disable())
 
-                // CORS 설정 적용
-                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                // CORS 설정: CorsConfig의 Bean을 자동으로 적용
+                .cors(cors -> {
+                    // CorsConfig.corsConfigurationSource() Bean이 자동으로 적용됨
+                })
 
-                // 세션 사용하지 않음 (JWT Stateless 인증)
-                .sessionManagement(session -> session
+                // 세션 관리: JWT 기반 Stateless 인증 사용
+                .sessionManagement(sm -> sm
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
-                // 인증 실패 시 처리
-                .exceptionHandling(exceptions -> exceptions
-                        .authenticationEntryPoint(jwtAuthenticationEntryPoint))
+                // 예외 처리: 401(인증 실패)과 403(권한 부족) 핸들러 바인딩
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(jwtAuthenticationEntryPoint)  // 401 처리
+                        .accessDeniedHandler(customAccessDeniedHandler)         // 403 처리
+                )
 
-                // 인증/인가 규칙 설정
+                // 인가 규칙 정의: 엔드포인트별 접근 권한 설정
                 .authorizeHttpRequests(auth -> auth
-                        // 인증 불필요 경로 (Public Endpoints)
-                        .requestMatchers("/").permitAll()
-                        .requestMatchers("/api/test/**").permitAll()
-                        .requestMatchers("/api/health").permitAll()
-
-                        // 회원가입/로그인 관련 (인증 불필요)
-                        .requestMatchers("/api/auth/signup").permitAll()
-                        .requestMatchers("/api/auth/login").permitAll()
-                        .requestMatchers("/api/auth/email/send-verification").permitAll()
-                        .requestMatchers("/api/auth/email/verify").permitAll()
-                        .requestMatchers("/api/auth/token/refresh").permitAll()
-
-                        // OAuth2 소셜 로그인 (추후 추가 예정)
-                        .requestMatchers("/oauth2/**").permitAll()
-                        .requestMatchers("/login/oauth2/**").permitAll()
-
-                        // 개발 도구 (개발 환경에서만 사용)
-                        .requestMatchers("/h2-console/**").permitAll()
-                        .requestMatchers("/actuator/**").permitAll()
-
-                        // 인증 필요 경로
-                        .requestMatchers("/api/auth/onboarding").authenticated()
-                        .requestMatchers("/api/auth/status").authenticated()
-                        .requestMatchers("/api/auth/logout").authenticated()
-                        .requestMatchers("/api/me/**").authenticated()
-                        .requestMatchers("/api/calendar/**").authenticated()
-                        .requestMatchers("/api/diary/**").authenticated()
-                        .requestMatchers("/api/todo/**").authenticated()
-                        .requestMatchers("/api/bucket/**").authenticated()
-                        .requestMatchers("/api/smalltalk/**").authenticated()
+                        // Public 엔드포인트 (인증 불필요)
+                        .requestMatchers(
+                                "/api/health",           // 헬스 체크
+                                "/api/auth/register",    // 회원가입
+                                "/api/auth/verify",      // 이메일 인증
+                                "/api/auth/login",       // 로그인
+                                "/api/auth/refresh",     // 토큰 갱신
+                                "/login/**",             // OAuth2 로그인 경로
+                                "/oauth2/**"             // OAuth2 콜백 경로
+                        ).permitAll()
 
                         // 나머지 모든 요청은 인증 필요
                         .anyRequest().authenticated()
                 )
 
-                // H2 콘솔 사용을 위한 설정 (개발 환경)
-                .headers(headers -> headers
-                        .frameOptions(frameOptions -> frameOptions.disable()))  // 최신 API 사용
-
-                // JWT 인증 필터를 UsernamePasswordAuthenticationFilter 앞에 추가
+                // JWT 인증 필터를 Spring Security 필터 체인에 추가
+                // UsernamePasswordAuthenticationFilter 앞에 배치하여 우선 처리
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
 
-    /**
-     * CORS 설정
-     *
-     * <p>
-     * 프론트엔드와의 연동을 위한 Cross-Origin 요청 허용 설정입니다.
-     * JWT 토큰을 Authorization 헤더로 전송할 수 있도록 구성되어 있습니다.
-     * </p>
-     *
-     * @return CORS 설정이 적용된 CorsConfigurationSource
-     */
-    @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration configuration = new CorsConfiguration();
-
-        // 허용할 오리진 (프론트엔드 도메인)
-        configuration.setAllowedOrigins(Arrays.asList(
-                "http://localhost:3000",  // React 개발 서버
-                "http://localhost:5005"   // 설정 파일의 프론트엔드 URL
-        ));
-
-        // 허용할 HTTP 메서드
-        configuration.setAllowedMethods(Arrays.asList(
-                "GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"
-        ));
-
-        // 허용할 헤더 (JWT Authorization 헤더 포함)
-        configuration.setAllowedHeaders(Arrays.asList(
-                "Authorization",
-                "Content-Type",
-                "X-Requested-With",
-                "Accept",
-                "Origin",
-                "Access-Control-Request-Method",
-                "Access-Control-Request-Headers"
-        ));
-
-        // 노출할 헤더 (프론트엔드에서 읽을 수 있는 헤더)
-        configuration.setExposedHeaders(Arrays.asList(
-                "Authorization",
-                "Content-Disposition"
-        ));
-
-        // 인증 정보 포함 허용 (JWT 토큰, 쿠키 등)
-        configuration.setAllowCredentials(true);
-
-        // preflight 요청 캐시 시간 (초)
-        configuration.setMaxAge(3600L);
-
-        // 모든 경로에 CORS 설정 적용
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", configuration);
-
-        return source;
-    }
+    // 주의사항: CORS Bean은 CorsConfig에서 정의하므로 여기서는 생성하지 않습니다.
+    // 중복 Bean 생성을 방지하여 설정 충돌을 방지합니다.
 }
