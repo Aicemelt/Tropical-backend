@@ -156,38 +156,39 @@ public class BucketListService {
     }
 
     /**
-     * 버킷리스트 완료 상태 변경
+     * 버킷리스트 완료 상태 토글
      *
      * @param user 사용자 정보
-     * @param bucketId 완료 처리할 버킷리스트 ID
-     * @param request 완료 상태 변경 요청 데이터
+     * @param bucketId 토글할 버킷리스트 ID
      * @return 수정된 버킷리스트 응답 정보
      * @throws NoSuchElementException 버킷리스트를 찾을 수 없는 경우
      * @throws SecurityException 접근 권한이 없는 경우
      */
     @Transactional
-    public BucketListResponse updateBucketListCompletion(User user, Long bucketId, BucketListCompleteRequest request) {
-        log.info("Updating completion status for bucket list: {} to {} for user: {}",
-                bucketId, request.getIsCompleted(), user.getId());
+    public BucketListResponse toggleBucketListCompletion(User user, Long bucketId) {
+        log.info("Toggling completion status for bucket list: {} for user: {}", bucketId, user.getId());
 
         BucketList bucketList = bucketListRepository.findById(bucketId)
                 .orElseThrow(() -> new NoSuchElementException("버킷리스트를 찾을 수 없습니다."));
 
         validateBucketListOwnership(bucketList, user);
 
+        // 현재 상태의 반대로 변경
+        Boolean newCompletionStatus = !bucketList.getIsCompleted();
+
         // 완료 상태 업데이트
         BucketList updatedBucketList = BucketList.builder()
                 .bucketId(bucketList.getBucketId())
                 .user(bucketList.getUser())
                 .content(bucketList.getContent())
-                .isCompleted(request.getIsCompleted())
+                .isCompleted(newCompletionStatus)
                 .createdAt(bucketList.getCreatedAt())
                 .updatedAt(LocalDateTime.now())
                 .build();
 
         BucketList savedBucketList = bucketListRepository.save(updatedBucketList);
 
-        log.info("Successfully updated completion status for bucket list: {}", bucketId);
+        log.info("Successfully toggled completion status for bucket list: {} to {}", bucketId, newCompletionStatus);
         return BucketListResponse.from(savedBucketList);
     }
 
