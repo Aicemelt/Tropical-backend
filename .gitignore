@@ -36,11 +36,12 @@ out/
 ### VS Code ###
 .vscode/
 
-
-### Environment Variables ###
 .env
 .env.local
 .env.development
 .env.production
 application-local.yml
 application-local.properties
+
+### VibeCoding Documentation ###
+ShnDocs/
