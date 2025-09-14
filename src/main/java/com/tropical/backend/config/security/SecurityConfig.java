@@ -1,18 +1,20 @@
 package com.tropical.backend.config.security;
 
+import com.tropical.backend.config.auth.CustomAccessDeniedHandler;
+import com.tropical.backend.config.auth.JwtAuthenticationEntryPoint;
 import com.tropical.backend.config.auth.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 /**
- * Spring Security 보안 설정 클래스
+ * Spring Security 보안 설정 클래스 (통합 에러 처리)
  *
  * <p>
  * JWT 기반 인증 시스템과 CORS 설정을 통합한 Spring Security 보안 구성입니다.
@@ -25,21 +27,22 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  *   <li>JWT 인증 필터 체인 구성</li>
  *   <li>API 엔드포인트별 인증/인가 규칙 정의</li>
  *   <li>CORS 설정 통합 적용</li>
- *   <li>401/403 예외 처리 핸들러 바인딩</li>
+ *   <li>일관된 JSON 형식의 401/403 예외 처리</li>
  *   <li>CSRF 비활성화 및 세션 Stateless 설정</li>
  * </ul>
  *
  * @author 왕택준
- * @version 0.2
+ * @version 0.3
  * @since 2025.09.14
  */
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity(prePostEnabled = true) // 메서드 보안 활성화 어노테이션
 @RequiredArgsConstructor
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;      // JWT 인증 필터
-    private final AuthenticationEntryPoint jwtAuthenticationEntryPoint; // 401 인증 실패 처리
+    private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint; // 401 인증 실패 처리
     private final CustomAccessDeniedHandler customAccessDeniedHandler;  // 403 권한 부족 처리
 
     /**
@@ -65,6 +68,12 @@ public class SecurityConfig {
      *   <li>인증 필요: 나머지 모든 API 엔드포인트</li>
      * </ul>
      *
+     * <p>예외 처리:</p>
+     * <ul>
+     *   <li>401 Unauthorized: JwtAuthenticationEntryPoint에서 일관된 JSON 응답</li>
+     *   <li>403 Forbidden: CustomAccessDeniedHandler에서 일관된 JSON 응답</li>
+     * </ul>
+     *
      * @param http HttpSecurity 설정 객체
      * @return 구성된 SecurityFilterChain
      * @throws Exception 보안 설정 중 발생할 수 있는 예외
@@ -84,7 +93,7 @@ public class SecurityConfig {
                 .sessionManagement(sm -> sm
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
-                // 예외 처리: 401(인증 실패)과 403(권한 부족) 핸들러 바인딩
+                // 예외 처리: 일관된 JSON 형식의 401/403 에러 응답
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint(jwtAuthenticationEntryPoint)  // 401 처리
                         .accessDeniedHandler(customAccessDeniedHandler)         // 403 처리
@@ -94,11 +103,13 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Public 엔드포인트 (인증 불필요)
                         .requestMatchers(
+                                "/error",                      // Spring Boot 기본 에러 페이지
                                 "/api/health",                 // 헬스 체크
                                 "/api/auth/signup",            // 회원가입
-                                "/api/auth/verify/**",         // 이메일 인증 (하위 경로 포함)
+                                "/api/auth/verify/**",         // 이메일 인증
                                 "/api/auth/login",             // 로그인
                                 "/api/auth/token/refresh",     // 토큰 갱신
+                                "/api/auth/logout",            // 로그아웃 (쿠키 삭제용)
                                 "/login/**",                   // OAuth2 로그인 경로
                                 "/oauth2/**"                   // OAuth2 콜백 경로
                         ).permitAll()

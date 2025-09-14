@@ -1,64 +1,77 @@
 package com.tropical.backend.config.auth;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tropical.backend.common.util.ErrorResponseWriter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.MediaType;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
-import java.time.LocalDateTime;
-import java.util.Map;
 
 /**
- * JWT 인증 실패 시 처리하는 EntryPoint
+ * JWT 인증 실패 처리 핸들러 (401 Unauthorized)
  *
  * <p>
- * 인증이 필요한 엔드포인트에 유효하지 않은 토큰으로 접근하거나
- * 토큰 없이 접근할 때 401 Unauthorized 응답을 반환합니다.
+ * 인증이 필요한 리소스에 인증되지 않은 사용자가 접근할 때 호출됩니다.
+ * 일관된 JSON 형식의 401 에러 응답을 제공합니다.
  * </p>
- * <p>
- * 수정사항:
- * - ❌ 기존: private final ObjectMapper objectMapper = new ObjectMapper();
- * - ✅ 변경: 스프링 빈으로 주입받아 JavaTimeModule이 포함된 ObjectMapper 사용
- * - LocalDateTime 직렬화 문제 완전 해결
+ *
+ * <p>발생 시나리오:</p>
+ * <ul>
+ *   <li>JWT 토큰이 없는 경우</li>
+ *   <li>JWT 토큰이 유효하지 않은 경우</li>
+ *   <li>JWT 토큰이 만료된 경우</li>
+ *   <li>JWT 토큰 형식이 잘못된 경우</li>
+ * </ul>
  *
  * @author 왕택준
- * @version 0.2
- * @since 2025.09.13
+ * @version 0.3
+ * @since 2025.09.14
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor  // final 필드에 대한 생성자 자동 생성
 public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
 
-    // 스프링 부트가 자동 구성한 ObjectMapper 빈 주입 (JavaTimeModule 포함)
-    private final ObjectMapper objectMapper;
-
+    /**
+     * 인증 실패 시 호출되는 메서드
+     *
+     * @param request       HTTP 요청 객체
+     * @param response      HTTP 응답 객체
+     * @param authException 인증 예외 정보
+     * @throws IOException 응답 작성 실패 시
+     */
     @Override
-    public void commence(HttpServletRequest request,
-                         HttpServletResponse response,
+    public void commence(HttpServletRequest request, HttpServletResponse response,
                          AuthenticationException authException) throws IOException {
 
-        log.warn("인증 실패 - URI: {}, 에러: {}", request.getRequestURI(), authException.getMessage());
+        String errorMessage = "인증이 필요합니다";
+        String requestUri = request.getRequestURI();
 
-        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        response.setCharacterEncoding("UTF-8");
+        // 인증 예외 타입별 세부 메시지 설정 (선택적)
+        if (authException != null) {
+            String exceptionMessage = authException.getMessage();
+            if (exceptionMessage != null) {
+                if (exceptionMessage.contains("expired")) {
+                    errorMessage = "토큰이 만료되었습니다";
+                } else if (exceptionMessage.contains("malformed")) {
+                    errorMessage = "잘못된 토큰 형식입니다";
+                } else if (exceptionMessage.contains("signature")) {
+                    errorMessage = "유효하지 않은 토큰입니다";
+                }
+            }
+        }
 
-        Map<String, Object> errorResponse = Map.of(
-                "success", false,
-                "message", "인증이 필요합니다",
-                "errorCode", "UNAUTHORIZED",
-                "timestamp", LocalDateTime.now(), // 이제 정상적으로 직렬화됨
-                "path", request.getRequestURI()
+        log.warn("인증 실패 - URI: {}, 에러: {}", requestUri,
+                authException != null ? authException.getMessage() : "unknown");
+
+        ErrorResponseWriter.write(
+                request,
+                response,
+                HttpServletResponse.SC_UNAUTHORIZED,
+                errorMessage,
+                "UNAUTHORIZED"
         );
-
-        // ObjectMapper.writeValue()를 사용하면 더 안전함
-        objectMapper.writeValue(response.getWriter(), errorResponse);
     }
 }
