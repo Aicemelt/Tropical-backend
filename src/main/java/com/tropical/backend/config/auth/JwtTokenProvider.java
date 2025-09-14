@@ -30,6 +30,7 @@ import java.util.List;
  * <ul>
  *   <li>JWT Access/Refresh Token 생성 및 검증</li>
  *   <li>이메일 인증용 단기 토큰 생성</li>
+ *   <li>비밀번호 재설정용 토큰 생성</li>
  *   <li>토큰 타입별 구분 및 검증</li>
  *   <li>시계 오차(±60초) 허용으로 안정성 향상</li>
  *   <li>Base64/UTF-8 키 지원 및 보안 길이 검증</li>
@@ -37,7 +38,7 @@ import java.util.List;
  * </ul>
  *
  * @author 왕택준
- * @version 0.3
+ * @version 0.4
  * @since 2025.09.14
  */
 @Slf4j
@@ -67,6 +68,22 @@ public class JwtTokenProvider {
      */
     @Value("${jwt.refresh-token-expiration-ms:1209600000}")
     private long refreshTokenExpirationMs;
+
+    /**
+     * 이메일 인증 토큰 만료 시간 (밀리초)
+     *
+     * <p>기본값: 1800000ms (30분)</p>
+     */
+    @Value("${jwt.email-verify-expiration:1800000}")
+    private long emailVerifyExpirationMs;
+
+    /**
+     * 비밀번호 재설정 토큰 만료 시간 (밀리초)
+     *
+     * <p>기본값: 3600000ms (1시간)</p>
+     */
+    @Value("${jwt.password-reset-expiration:3600000}")
+    private long passwordResetExpirationMs;
 
     /**
      * JWT 서명에 사용할 SecretKey 객체
@@ -136,7 +153,7 @@ public class JwtTokenProvider {
                 // 하위호환이 필요한 경우 .claim("purpose", "ACCESS") 추가 가능
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plusMillis(accessTokenExpirationMs)))
-                .signWith(secretKey, Jwts.SIG.HS256) // // JJWT로 통일 및 알고리즘을 HS256으로 명시
+                .signWith(secretKey, Jwts.SIG.HS256) // JJWT로 통일 및 알고리즘을 HS256으로 명시
                 .compact();
     }
 
@@ -182,8 +199,32 @@ public class JwtTokenProvider {
                 .claim("tokenType", "EMAIL_VERIFY")
                 .claim("purpose", "email_verification")    // 하위호환용(선택사항)
                 .issuedAt(Date.from(now))
-                .expiration(Date.from(now.plusSeconds(60 * 30))) // 30분 만료
-                .signWith(secretKey)
+                .expiration(Date.from(now.plusMillis(emailVerifyExpirationMs)))
+                .signWith(secretKey, Jwts.SIG.HS256)
+                .compact();
+    }
+
+    /**
+     * 비밀번호 재설정용 토큰 생성
+     *
+     * <p>
+     * 비밀번호 재설정을 위한 단기 유효 토큰을 생성합니다.
+     * 향후 비밀번호 재설정 기능 구현 시 사용될 예정입니다.
+     * </p>
+     *
+     * @param userId 사용자 ID
+     * @param email  사용자 이메일 주소
+     * @return 생성된 비밀번호 재설정 토큰
+     */
+    public String createPasswordResetToken(Long userId, String email) {
+        Instant now = Instant.now();
+        return Jwts.builder()
+                .subject(String.valueOf(userId))
+                .claim("email", email)
+                .claim("tokenType", "PASSWORD_RESET")
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(now.plusMillis(passwordResetExpirationMs)))
+                .signWith(secretKey, Jwts.SIG.HS256)
                 .compact();
     }
 
@@ -270,6 +311,26 @@ public class JwtTokenProvider {
      */
     public boolean isRefreshToken(String token) {
         return "REFRESH".equals(String.valueOf(parseClaims(token).get("tokenType")));
+    }
+
+    /**
+     * 이메일 인증 토큰 타입 검증
+     *
+     * @param token 검증할 토큰
+     * @return 이메일 인증 토큰이면 true
+     */
+    public boolean isEmailVerifyToken(String token) {
+        return "EMAIL_VERIFY".equals(String.valueOf(parseClaims(token).get("tokenType")));
+    }
+
+    /**
+     * 비밀번호 재설정 토큰 타입 검증
+     *
+     * @param token 검증할 토큰
+     * @return 비밀번호 재설정 토큰이면 true
+     */
+    public boolean isPasswordResetToken(String token) {
+        return "PASSWORD_RESET".equals(String.valueOf(parseClaims(token).get("tokenType")));
     }
 
     /**

@@ -32,7 +32,7 @@ import java.util.List;
  * </ul>
  *
  * @author 왕택준
- * @version 0.1
+ * @version 0.2
  * @since 2025.09.13
  */
 @Entity
@@ -47,6 +47,7 @@ import java.util.List;
         // }
 )
 @Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @ToString(exclude = {"socialAccounts", "userConsents", "schedules", "diaries", "todos", "bucketLists", "smalltalkTopics"})
@@ -93,9 +94,15 @@ public class User {
      */
     @Column(name = "email_verified", nullable = false)
     @Builder.Default
-    // TODO: EmailService 구현 완료 후 기본값을 false로 변경하고 이메일 인증 플로우 활성화
-    // private Boolean emailVerified = false;
-    private Boolean emailVerified = true; // 임시: JWT 로그인 테스트를 위해 true로 설정
+    private Boolean emailVerified = false;
+
+    /**
+     * 이메일 인증 완료 시간
+     *
+     * <p>이메일 인증이 완료된 정확한 시간을 기록합니다.</p>
+     */
+    @Column(name = "email_verified_at")
+    private LocalDateTime emailVerifiedAt;
 
     /**
      * 계정 타입 구분
@@ -273,8 +280,6 @@ public class User {
      * 동시에 연동할 수 있습니다.
      * </p>
      */
-    // orphanRemoval 제거: 서비스에서 명시적 삭제 정책으로 변경
-    // @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true) // 기존 코드
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
     @Builder.Default
     private List<SocialAccount> socialAccounts = new ArrayList<>();
@@ -284,8 +289,6 @@ public class User {
      *
      * <p>필수 동의와 선택 동의 정보를 모두 포함합니다.</p>
      */
-    // orphanRemoval 제거: GDPR 준수를 위한 명시적 개인정보 삭제 정책
-    // @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true) // 기존 코드
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
     @Builder.Default
     private List<UserConsent> userConsents = new ArrayList<>();
@@ -389,8 +392,7 @@ public class User {
                 .passwordHash(passwordHash)
                 .nickname(nickname)
                 .accountType(AccountType.LOCAL)
-                // TODO: EmailService 구현 완료 후 이메일 인증 플로우 활성화 시 주석 해제
-                // .emailVerified(false)  // 이메일 인증 필요한 상태로 생성
+                .emailVerified(false)  // 이메일 인증 필요한 상태로 생성
                 .build();
     }
 
@@ -423,6 +425,7 @@ public class User {
      */
     public void verifyEmail() {
         this.emailVerified = true;
+        this.emailVerifiedAt = LocalDateTime.now();
     }
 
     /**

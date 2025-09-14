@@ -6,25 +6,30 @@ import com.tropical.backend.auth.dto.request.SignupRequest;
 import com.tropical.backend.auth.dto.response.TokenResponse;
 import com.tropical.backend.auth.dto.response.UserResponse;
 import com.tropical.backend.auth.entity.User;
+import com.tropical.backend.auth.service.EmailService;
 import com.tropical.backend.auth.service.UserConsentService;
 import com.tropical.backend.auth.service.UserService;
 import com.tropical.backend.common.util.CookieUtil;
 import com.tropical.backend.config.auth.JwtAuthenticationFilter;
 import com.tropical.backend.config.auth.JwtTokenProvider;
+import io.jsonwebtoken.Claims;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Date;
 import java.util.Map;
 
 /**
- * JWT 기반 인증 API 컨트롤러 (쿠키 지원 추가)
+ * JWT 기반 인증 API 컨트롤러 (이메일 인증 완료)
  *
  * <p>
  * JWT 토큰을 사용하는 로컬 계정 회원가입, 로그인, 온보딩 등
@@ -34,8 +39,9 @@ import java.util.Map;
  *
  * <p>주요 기능:</p>
  * <ul>
- *   <li>로컬 계정 회원가입 (쿠키 + 헤더 병행 토큰 제공)</li>
- *   <li>JWT 기반 로그인 및 토큰 발급 (쿠키 + 헤더 병행)</li>
+ *   <li>로컬 계정 회원가입 (이메일 인증 메일 자동 발송)</li>
+ *   <li>JWT 기반 로그인 및 토큰 발급 (이메일 인증 확인)</li>
+ *   <li>이메일 인증 처리 및 재발송</li>
  *   <li>온보딩 프로세스 (JWT 인증 필요)</li>
  *   <li>사용자 인증 상태 확인</li>
  *   <li>로그아웃 처리 (쿠키 삭제 포함)</li>
@@ -43,8 +49,8 @@ import java.util.Map;
  * </ul>
  *
  * @author 왕택준
- * @version 0.3
- * @since 2025.09.14
+ * @version 0.4
+ * @since 2025.09.15
  */
 @RestController
 @RequestMapping("/api/auth")
@@ -55,19 +61,27 @@ public class AuthController {
     private final UserService userService;
     private final UserConsentService userConsentService;
     private final JwtTokenProvider jwtTokenProvider;
+    private final EmailService emailService;
+
+    @Value("${app.frontend.base-url:http://localhost:3000}")
+    private String frontendBaseUrl;
+
+    @Value("${app.backend.base-url:http://localhost:8080}")
+    private String backendBaseUrl;
 
     /**
-     * 로컬 계정 회원가입 (쿠키 지원 추가)
+     * 로컬 계정 회원가입 (이메일 인증 메일 발송)
      *
      * <p>
      * 이메일과 비밀번호를 사용하는 로컬 계정을 생성합니다.
-     * 회원가입 성공 후 JWT 토큰을 발급하여 자동 로그인 처리하며,
+     * 회원가입 성공 후 이메일 인증 메일을 자동 발송하며,
+     * JWT 토큰을 발급하여 자동 로그인 처리합니다.
      * Authorization 헤더용 응답과 함께 HttpOnly 쿠키로도 토큰을 제공합니다.
      * </p>
      *
      * @param signupRequest 회원가입 요청 정보 (이메일, 비밀번호, 닉네임)
      * @param response      HTTP 응답 객체 (쿠키 설정용)
-     * @return JWT 토큰과 사용자 정보, 온보딩 필요 상태
+     * @return JWT 토큰과 사용자 정보, 이메일 인증 필요 상태
      */
     @PostMapping("/signup")
     public ResponseEntity<?> signup(@Valid @RequestBody SignupRequest signupRequest,
@@ -76,12 +90,17 @@ public class AuthController {
                 signupRequest.getEmail(), signupRequest.getNickname());
 
         try {
-            // 로컬 사용자 생성
+            // 로컬 사용자 생성 (emailVerified=false)
             User user = userService.createLocalUser(
                     signupRequest.getEmail(),
                     signupRequest.getPassword(),
                     signupRequest.getNickname()
             );
+
+            // 이메일 인증 토큰 발급 및 발송
+            String emailVerifyToken = jwtTokenProvider.createEmailVerifyToken(user.getId(), user.getEmail());
+            String verifyUrl = backendBaseUrl + "/api/auth/verify?token=" + emailVerifyToken;
+            emailService.sendVerificationMail(user.getEmail(), verifyUrl);
 
             // JWT 토큰 생성
             String accessToken = jwtTokenProvider.createAccessToken(user.getId(), user.getEmail());
@@ -105,13 +124,13 @@ public class AuthController {
                     accessToken, refreshToken, expiresAt, UserResponse.from(user)
             );
 
-            log.info("로컬 계정 회원가입 성공 (쿠키+헤더) - 사용자 ID: {}", user.getId());
+            log.info("로컬 계정 회원가입 성공 (쿠키+헤더) - 사용자 ID: {}, 이메일 인증 메일 발송", user.getId());
 
             return ResponseEntity.ok(Map.of(
                     "success", true,
-                    "message", "회원가입이 완료되었습니다. 온보딩을 진행해주세요.",
+                    "message", "회원가입이 완료되었습니다. 이메일 인증을 진행해주세요.",
                     "data", tokenResponse,
-                    "nextStep", "onboarding"
+                    "nextStep", "email_verification"
             ));
 
         } catch (IllegalArgumentException e) {
@@ -127,10 +146,11 @@ public class AuthController {
     }
 
     /**
-     * 로컬 계정 로그인 (쿠키 지원 추가)
+     * 로컬 계정 로그인 (이메일 인증 확인)
      *
      * <p>
      * 이메일과 비밀번호를 검증하여 JWT 토큰을 발급합니다.
+     * 이메일 인증이 완료되지 않은 계정은 403으로 차단합니다.
      * 로그인 성공 시 사용자 정보와 온보딩 완료 상태를 함께 반환하며,
      * Authorization 헤더용 응답과 함께 HttpOnly 쿠키로도 토큰을 제공합니다.
      * </p>
@@ -161,10 +181,10 @@ public class AuthController {
                 throw new IllegalArgumentException("비밀번호가 일치하지 않습니다");
             }
 
-            // 이메일 인증 확인
+            // 이메일 인증 확인 (핵심 추가 부분)
             if (!user.isEmailVerified()) {
                 log.warn("이메일 미인증 사용자 로그인 시도 - 이메일: {}", loginRequest.getEmail());
-                return ResponseEntity.badRequest().body(Map.of(
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(
                         "success", false,
                         "message", "이메일 인증이 필요합니다",
                         "errorCode", "EMAIL_NOT_VERIFIED",
@@ -216,6 +236,115 @@ public class AuthController {
                     "success", false,
                     "message", e.getMessage(),
                     "errorCode", "LOGIN_FAILED"
+            ));
+        }
+    }
+
+    /**
+     * 이메일 인증 처리
+     *
+     * <p>
+     * 이메일로 발송된 인증 링크를 통해 이메일 인증을 완료합니다.
+     * 토큰을 검증한 후 사용자의 emailVerified 플래그를 true로 설정하고
+     * 인증 완료 시간을 기록합니다.
+     * </p>
+     *
+     * @param token    이메일 인증 토큰
+     * @param response HTTP 응답 객체 (리다이렉트용)
+     * @throws IOException 리다이렉트 실패 시
+     */
+    @GetMapping("/verify")
+    public void verifyEmail(@RequestParam("token") String token,
+                            HttpServletResponse response) throws IOException {
+        try {
+            Claims claims = jwtTokenProvider.parseClaims(token);
+
+            // 토큰 타입 확인
+            if (!"EMAIL_VERIFY".equals(String.valueOf(claims.get("tokenType")))) {
+                log.warn("잘못된 토큰 타입으로 이메일 인증 시도");
+                response.sendRedirect(frontendBaseUrl + "/verify-failed");
+                return;
+            }
+
+            Long userId = Long.valueOf(claims.getSubject());
+            String email = claims.get("email", String.class);
+
+            // 이메일 인증 처리
+            userService.markEmailVerified(userId, email);
+
+            log.info("이메일 인증 완료 - 사용자 ID: {}, 이메일: {}", userId, email);
+            response.sendRedirect(frontendBaseUrl + "/verified");
+
+        } catch (Exception e) {
+            log.warn("이메일 인증 실패 - 토큰: {}, 사유: {}", token, e.getMessage());
+            response.sendRedirect(frontendBaseUrl + "/verify-failed");
+        }
+    }
+
+    /**
+     * 이메일 인증 메일 재발송
+     *
+     * <p>
+     * 현재 로그인된 사용자에게 이메일 인증 메일을 재발송합니다.
+     * 이미 인증된 사용자나 소셜 계정 사용자는 재발송할 수 없습니다.
+     * </p>
+     *
+     * @return 재발송 결과
+     */
+    @PostMapping("/verify/resend")
+    public ResponseEntity<?> resendVerificationEmail() {
+        Long userId = JwtAuthenticationFilter.getCurrentUserId();
+        if (userId == null) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "message", "인증 정보를 찾을 수 없습니다",
+                    "errorCode", "AUTHENTICATION_REQUIRED"
+            ));
+        }
+
+        log.info("이메일 인증 메일 재발송 요청 - 사용자 ID: {}", userId);
+
+        try {
+            User user = userService.findActiveUserById(userId)
+                    .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다"));
+
+            // 이미 인증된 경우
+            if (user.isEmailVerified()) {
+                return ResponseEntity.badRequest().body(Map.of(
+                        "success", false,
+                        "message", "이미 이메일 인증이 완료되었습니다",
+                        "errorCode", "ALREADY_VERIFIED"
+                ));
+            }
+
+            // 소셜 계정인 경우
+            if (user.isSocialAccount()) {
+                return ResponseEntity.badRequest().body(Map.of(
+                        "success", false,
+                        "message", "소셜 계정은 이메일 인증이 필요하지 않습니다",
+                        "errorCode", "SOCIAL_ACCOUNT"
+                ));
+            }
+
+            // 인증 메일 재발송
+            String emailVerifyToken = jwtTokenProvider.createEmailVerifyToken(user.getId(), user.getEmail());
+            String verifyUrl = backendBaseUrl + "/api/auth/verify?token=" + emailVerifyToken;
+            emailService.sendVerificationMail(user.getEmail(), verifyUrl);
+
+            log.info("이메일 인증 메일 재발송 완료 - 사용자 ID: {}", userId);
+
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "message", "인증 메일이 재발송되었습니다"
+            ));
+
+        } catch (IllegalArgumentException e) {
+            log.warn("이메일 인증 메일 재발송 실패 - 사용자 ID: {}, 사유: {}", userId, e.getMessage());
+
+            return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "message", e.getMessage(),
+                    "errorCode", "RESEND_FAILED"
             ));
         }
     }
@@ -302,6 +431,7 @@ public class AuthController {
      * <p>
      * 현재 JWT 토큰으로 인증된 사용자의 상태와 온보딩 완료 여부를 확인합니다.
      * SecurityContext에서 인증 정보를 추출하여 사용자 상태를 반환합니다.
+     * emailVerified 정보도 포함하여 프론트엔드에서 다음 단계를 결정할 수 있습니다.
      * </p>
      *
      * @return 사용자 인증 상태 정보
@@ -338,7 +468,8 @@ public class AuthController {
                     "success", true,
                     "user", UserResponse.from(user),
                     "nextStep", nextStep,
-                    "authenticated", true
+                    "authenticated", true,
+                    "emailVerified", user.isEmailVerified()  // 핵심 추가 부분
             ));
 
         } catch (IllegalArgumentException e) {

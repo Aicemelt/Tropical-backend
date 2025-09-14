@@ -32,8 +32,8 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  * </ul>
  *
  * @author 왕택준
- * @version 0.3
- * @since 2025.09.14
+ * @version 0.4
+ * @since 2025.09.15
  */
 @Configuration
 @EnableWebSecurity
@@ -106,7 +106,8 @@ public class SecurityConfig {
                                 "/error",                      // Spring Boot 기본 에러 페이지
                                 "/api/health",                 // 헬스 체크
                                 "/api/auth/signup",            // 회원가입
-                                "/api/auth/verify/**",         // 이메일 인증
+                                "/api/auth/verify",            // 이메일 인증
+                                "/api/auth/verify/resend",     // 이메일 인증 재발송
                                 "/api/auth/login",             // 로그인
                                 "/api/auth/token/refresh",     // 토큰 갱신
                                 "/api/auth/logout",            // 로그아웃 (쿠키 삭제용)

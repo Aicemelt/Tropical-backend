@@ -34,7 +34,7 @@ import java.util.Optional;
  * </ul>
  *
  * @author 왕택준
- * @version 0.1
+ * @version 0.2
  * @since 2025.09.13
  */
 @Service
@@ -189,6 +189,34 @@ public class UserService {
      */
     public Optional<User> findUserForTokenValidation(Long userId, String email) {
         return userRepository.findByIdAndEmailAndActive(userId, email);
+    }
+
+    /**
+     * 이메일 인증 완료 처리
+     *
+     * <p>
+     * 사용자의 이메일 인증을 완료하고 인증 시간을 기록합니다.
+     * 보안을 위해 사용자 ID와 이메일이 모두 일치하는지 확인합니다.
+     * </p>
+     *
+     * @param userId 사용자 ID
+     * @param email  인증할 이메일 주소
+     * @throws IllegalArgumentException 사용자를 찾을 수 없거나 이메일이 일치하지 않는 경우
+     */
+    @Transactional
+    public void markEmailVerified(Long userId, String email) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
+
+        if (!email.equals(user.getEmail())) {
+            throw new IllegalArgumentException("이메일이 일치하지 않습니다.");
+        }
+
+        user.setEmailVerified(true);
+        user.setEmailVerifiedAt(LocalDateTime.now());
+        userRepository.save(user);
+
+        log.info("이메일 인증 완료 처리 - 사용자 ID: {}, 이메일: {}", userId, email);
     }
 
     /**
