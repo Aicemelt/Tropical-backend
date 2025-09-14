@@ -1,4 +1,4 @@
-package com.tropical.backend.config;
+package com.tropical.backend.config.auth;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;

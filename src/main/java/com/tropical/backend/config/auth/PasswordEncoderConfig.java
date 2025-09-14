@@ -1,4 +1,4 @@
-package com.tropical.backend.config;
+package com.tropical.backend.config.auth;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

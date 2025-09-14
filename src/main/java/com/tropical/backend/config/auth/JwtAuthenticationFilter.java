@@ -1,4 +1,4 @@
-package com.tropical.backend.config;
+package com.tropical.backend.config.auth;
 
 import com.tropical.backend.auth.entity.User;
 import com.tropical.backend.auth.service.UserService;

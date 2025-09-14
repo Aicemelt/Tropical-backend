@@ -1,4 +1,4 @@
-package com.tropical.backend.config;
+package com.tropical.backend.config.auth;
 
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
