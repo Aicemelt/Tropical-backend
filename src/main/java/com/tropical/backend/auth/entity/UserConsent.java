@@ -111,6 +111,13 @@ public class UserConsent {
         TERMS_OF_SERVICE("서비스 이용약관", true),
 
         /**
+         * 개인정보처리방침 동의
+         *
+         * <p>개인정보 수집·이용을 위한 법적 필수 동의입니다.</p>
+         */
+        PRIVACY_POLICY("개인정보처리방침", true),
+
+        /**
          * 일정 기반 추천 동의
          *
          * <p>
@@ -186,6 +193,7 @@ public class UserConsent {
         public static ConsentType[] getRequiredConsents() {
             return new ConsentType[]{
                     TERMS_OF_SERVICE,
+                    PRIVACY_POLICY,
                     CALENDAR_PERSONALIZATION
             };
         }

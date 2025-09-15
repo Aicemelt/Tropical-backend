@@ -117,11 +117,11 @@ public class User {
      * 사용자 닉네임
      *
      * <p>
-     * 전체 시스템에서 유일해야 하며, 소셜 로그인 시 중복되면
-     * 자동으로 숫자 suffix가 추가됩니다. (예: "홍길동1", "홍길동2")
+     * 사용자를 식별하는 표시명으로 사용됩니다.
+     * 닉네임 중복이 허용되며, 필요시 사용자 ID로 구분합니다.
      * </p>
      */
-    @Column(nullable = false, unique = true, length = 50)
+    @Column(nullable = false, length = 50)
     private String nickname;
 
     /**

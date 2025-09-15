@@ -6,6 +6,7 @@ import com.tropical.backend.auth.dto.request.SignupRequest;
 import com.tropical.backend.auth.dto.response.TokenResponse;
 import com.tropical.backend.auth.dto.response.UserResponse;
 import com.tropical.backend.auth.entity.User;
+import com.tropical.backend.auth.entity.UserConsent;
 import com.tropical.backend.auth.service.EmailService;
 import com.tropical.backend.auth.service.UserConsentService;
 import com.tropical.backend.auth.service.UserService;
@@ -14,6 +15,7 @@ import com.tropical.backend.config.auth.JwtAuthenticationFilter;
 import com.tropical.backend.config.auth.JwtTokenProvider;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,6 +28,7 @@ import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -70,66 +73,82 @@ public class AuthController {
     private String backendBaseUrl;
 
     /**
-     * 로컬 계정 회원가입 (이메일 인증 메일 발송)
+     * 로컬 계정 회원가입 (약관 동의 + 이메일 인증 메일 발송)
      *
      * <p>
      * 이메일과 비밀번호를 사용하는 로컬 계정을 생성합니다.
-     * 회원가입 성공 후 이메일 인증 메일을 자동 발송하며,
-     * JWT 토큰을 발급하여 자동 로그인 처리합니다.
-     * Authorization 헤더용 응답과 함께 HttpOnly 쿠키로도 토큰을 제공합니다.
+     * 약관 동의를 회원가입 단계에서 함께 받아 온보딩을 완료하고,
+     * 이메일 인증 메일을 발송하여 인증 완료 후 로그인 가능하도록 합니다.
+     * JWT 토큰은 발급하지 않고 이메일 인증 단계로 안내합니다.
      * </p>
      *
-     * @param signupRequest 회원가입 요청 정보 (이메일, 비밀번호, 닉네임)
-     * @param response      HTTP 응답 객체 (쿠키 설정용)
-     * @return JWT 토큰과 사용자 정보, 이메일 인증 필요 상태
+     * @param signupRequest 회원가입 요청 정보 (이메일, 비밀번호, 닉네임, 동의 정보)
+     * @return 회원가입 결과와 다음 단계 안내
      */
     @PostMapping("/signup")
-    public ResponseEntity<?> signup(@Valid @RequestBody SignupRequest signupRequest,
-                                    HttpServletResponse response) {
+    @Transactional
+    public ResponseEntity<?> signup(@Valid @RequestBody SignupRequest signupRequest) {
         log.info("로컬 계정 회원가입 요청 - 이메일: {}, 닉네임: {}",
                 signupRequest.getEmail(), signupRequest.getNickname());
 
         try {
-            // 로컬 사용자 생성 (emailVerified=false)
+            // 1) 필수 동의 검증 (Bean Validation으로도 검증되지만 추가 보안)
+            var rc = signupRequest.getRequiredConsents();
+            if (rc == null || !Boolean.TRUE.equals(rc.getTermsOfService())
+                    || !Boolean.TRUE.equals(rc.getPrivacyPolicy())
+                    || !Boolean.TRUE.equals(rc.getCalendarPersonalization())) {
+                return ResponseEntity.badRequest().body(Map.of(
+                        "success", false,
+                        "errorCode", "CONSENT_REQUIRED",
+                        "message", "필수 약관(이용약관/개인정보처리방침/일정 기반 추천) 동의가 필요합니다",
+                        "nextStep", "signup"
+                ));
+            }
+
+            // 2) 사용자 생성 (emailVerified=false)
             User user = userService.createLocalUser(
                     signupRequest.getEmail(),
                     signupRequest.getPassword(),
                     signupRequest.getNickname()
             );
 
-            // 이메일 인증 토큰 발급 및 발송
+            // 3) 동의 정보 저장
+            Map<UserConsent.ConsentType, Boolean> consentData = new HashMap<>();
+
+            // 필수 동의 항목들
+            consentData.put(UserConsent.ConsentType.TERMS_OF_SERVICE, true);
+            consentData.put(UserConsent.ConsentType.PRIVACY_POLICY, true);
+            consentData.put(UserConsent.ConsentType.CALENDAR_PERSONALIZATION, true);
+
+            // 선택 동의 항목들
+            var oc = signupRequest.getOptionalConsents();
+            if (oc != null) {
+                if (Boolean.TRUE.equals(oc.getDiaryPersonalization())) {
+                    consentData.put(UserConsent.ConsentType.DIARY_PERSONALIZATION, true);
+                }
+                if (Boolean.TRUE.equals(oc.getTodoPersonalization())) {
+                    consentData.put(UserConsent.ConsentType.TODO_PERSONALIZATION, true);
+                }
+                if (Boolean.TRUE.equals(oc.getBucketPersonalization())) {
+                    consentData.put(UserConsent.ConsentType.BUCKET_PERSONALIZATION, true);
+                }
+            }
+
+            // 동의 정보 처리 및 온보딩 완료
+            userConsentService.processOnboardingConsents(user.getId(), consentData);
+            userService.completeOnboarding(user.getId());
+
+            // 4) 이메일 인증 토큰 발급 및 발송
             String emailVerifyToken = jwtTokenProvider.createEmailVerifyToken(user.getId(), user.getEmail());
             String verifyUrl = backendBaseUrl + "/api/auth/verify?token=" + emailVerifyToken;
             emailService.sendVerificationMail(user.getEmail(), verifyUrl);
 
-            // JWT 토큰 생성
-            String accessToken = jwtTokenProvider.createAccessToken(user.getId(), user.getEmail());
-            String refreshToken = jwtTokenProvider.createRefreshToken(user.getId());
-
-            // Access Token 만료 시간 계산
-            Date expirationDate = jwtTokenProvider.getExpirationFromToken(accessToken);
-            LocalDateTime expiresAt = expirationDate.toInstant()
-                    .atZone(ZoneId.systemDefault())
-                    .toLocalDateTime();
-
-            // 쿠키로 토큰 설정 (헤더와 병행)
-            int accessMaxAge = jwtTokenProvider.getAccessMaxAge();
-            int refreshMaxAge = jwtTokenProvider.getRefreshMaxAge();
-
-            response.addCookie(CookieUtil.build("ACCESS_TOKEN", accessToken, accessMaxAge));
-            response.addCookie(CookieUtil.build("REFRESH_TOKEN", refreshToken, refreshMaxAge));
-
-            // 응답 생성 (기존 헤더 방식도 유지)
-            TokenResponse.TokenResponseWithUser tokenResponse = TokenResponse.withUser(
-                    accessToken, refreshToken, expiresAt, UserResponse.from(user)
-            );
-
-            log.info("로컬 계정 회원가입 성공 (쿠키+헤더) - 사용자 ID: {}, 이메일 인증 메일 발송", user.getId());
+            // 5) 응답: 로그인 토큰 없이 이메일 인증 단계로 이동
+            log.info("로컬 계정 회원가입 완료 - 사용자 ID: {}, 이메일 인증 대기", user.getId());
 
             return ResponseEntity.ok(Map.of(
                     "success", true,
-                    "message", "회원가입이 완료되었습니다. 이메일 인증을 진행해주세요.",
-                    "data", tokenResponse,
+                    "message", "회원가입이 완료되었습니다. 이메일 인증을 완료해 주세요.",
                     "nextStep", "email_verification"
             ));
 
@@ -350,16 +369,16 @@ public class AuthController {
     }
 
     /**
-     * 온보딩 완료 처리 (JWT 인증 필요)
+     * 온보딩 완료 처리 (Deprecated - 로컬 계정용)
      *
      * <p>
-     * JWT 토큰으로 인증된 사용자의 필수 동의와 선택 동의를 처리하여 온보딩을 완료합니다.
-     * SecurityContext에서 현재 인증된 사용자 정보를 추출합니다.
+     * 로컬 계정의 경우 회원가입 단계에서 온보딩을 완료하므로 더 이상 사용되지 않습니다.
+     * 소셜 로그인 전용으로 추후 전환 예정입니다.
      * </p>
      *
-     * @param onboardingRequest 동의 정보 (필수 동의, 선택 동의)
-     * @return 온보딩 완료 결과
+     * @deprecated 로컬 계정은 회원가입에서 온보딩 완료, 소셜 전용으로 전환 예정
      */
+    @Deprecated
     @PostMapping("/onboarding")
     public ResponseEntity<?> completeOnboarding(@Valid @RequestBody OnboardingRequest onboardingRequest) {
 
@@ -373,10 +392,23 @@ public class AuthController {
             ));
         }
 
-        log.info("온보딩 완료 요청 - 사용자 ID: {}", userId);
+        log.info("온보딩 완료 요청 (Deprecated) - 사용자 ID: {}", userId);
 
         try {
-            // 동의 정보 처리
+            // 사용자 조회 및 계정 타입 확인
+            User user = userService.findActiveUserById(userId)
+                    .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다"));
+
+            // 로컬 계정인 경우 에러 응답
+            if (user.isLocalAccount()) {
+                return ResponseEntity.status(HttpStatus.GONE).body(Map.of(
+                        "success", false,
+                        "message", "로컬 계정은 회원가입 단계에서 온보딩이 완료됩니다",
+                        "errorCode", "ENDPOINT_DEPRECATED_FOR_LOCAL"
+                ));
+            }
+
+            // 소셜 계정 온보딩 처리 (기존 로직 유지)
             boolean consentResult = userConsentService.processOnboardingConsents(
                     userId,
                     onboardingRequest.getAllConsents()
@@ -390,7 +422,6 @@ public class AuthController {
                 ));
             }
 
-            // 온보딩 완료 처리
             boolean onboardingResult = userService.completeOnboarding(userId);
 
             if (!onboardingResult) {
@@ -402,15 +433,15 @@ public class AuthController {
             }
 
             // 완료된 사용자 정보 조회
-            User user = userService.findActiveUserById(userId)
+            User updatedUser = userService.findActiveUserById(userId)
                     .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다"));
 
-            log.info("온보딩 완료 성공 - 사용자 ID: {}", userId);
+            log.info("소셜 계정 온보딩 완료 - 사용자 ID: {}", userId);
 
             return ResponseEntity.ok(Map.of(
                     "success", true,
                     "message", "온보딩이 완료되었습니다",
-                    "user", UserResponse.from(user),
+                    "user", UserResponse.from(updatedUser),
                     "nextStep", "dashboard"
             ));
 
