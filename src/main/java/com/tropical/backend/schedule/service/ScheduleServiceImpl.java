@@ -1,0 +1,188 @@
+package com.tropical.backend.schedule.service;
+
+import com.tropical.backend.schedule.entity.Schedule;
+import com.tropical.backend.schedule.repository.ScheduleRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDate;
+import java.time.YearMonth;
+import java.util.List;
+
+/**
+ * 일정 관리 서비스 구현체
+ *
+ * <p>
+ * ScheduleService 인터페이스의 구현체로, 일정에 대한 비즈니스 로직을 처리합니다.
+ * CRUD 기본 기능과 완료 토글, 날짜별/월별 조회 등의 기능을 제공합니다.
+ * </p>
+ *
+ * @author 신동준
+ * @version 0.1
+ * @since 2025.09.15
+ */
+@Service
+@RequiredArgsConstructor
+@Transactional(readOnly = true)
+@Slf4j
+public class ScheduleServiceImpl implements ScheduleService {
+
+    private final ScheduleRepository scheduleRepository;
+
+    /**
+     * 새로운 일정을 생성합니다
+     */
+    @Override
+    @Transactional
+    public Schedule createSchedule(Schedule schedule) {
+        log.info("일정 생성 요청: 사용자 ID = {}, 제목 = {}",
+                schedule.getUser().getId(), schedule.getTitle());
+
+        Schedule savedSchedule = scheduleRepository.save(schedule);
+
+        log.info("일정 생성 완료: ID = {}", savedSchedule.getId());
+        return savedSchedule;
+    }
+
+    /**
+     * ID로 일정을 조회합니다
+     */
+    @Override
+    public Schedule getScheduleById(Long scheduleId) {
+        log.info("일정 조회 요청: ID = {}", scheduleId);
+
+        return scheduleRepository.findById(scheduleId)
+                .orElseThrow(() -> {
+                    log.error("일정을 찾을 수 없습니다: ID = {}", scheduleId);
+                    return new RuntimeException("일정을 찾을 수 없습니다: " + scheduleId);
+                });
+    }
+
+    /**
+     * 사용자의 모든 일정을 조회합니다
+     */
+    @Override
+    public List<Schedule> getSchedulesByUserId(Long userId) {
+        log.info("사용자 일정 조회 요청: 사용자 ID = {}", userId);
+
+        List<Schedule> schedules = scheduleRepository.findByUser_IdOrderByScheduleDateAscStartTimeAsc(userId);
+
+        log.info("사용자 일정 조회 완료: 사용자 ID = {}, 일정 수 = {}", userId, schedules.size());
+        return schedules;
+    }
+
+    /**
+     * 특정 날짜의 일정을 조회합니다
+     */
+    @Override
+    public List<Schedule> getSchedulesByDate(Long userId, LocalDate date) {
+        log.info("날짜별 일정 조회 요청: 사용자 ID = {}, 날짜 = {}", userId, date);
+
+        List<Schedule> schedules = scheduleRepository.findByUser_IdAndScheduleDateOrderByStartTimeAsc(userId, date);
+
+        log.info("날짜별 일정 조회 완료: 사용자 ID = {}, 날짜 = {}, 일정 수 = {}",
+                userId, date, schedules.size());
+        return schedules;
+    }
+
+    /**
+     * 월별 일정을 조회합니다
+     */
+    @Override
+    public List<Schedule> getSchedulesByMonth(Long userId, int year, int month) {
+        log.info("월별 일정 조회 요청: 사용자 ID = {}, 연도 = {}, 월 = {}", userId, year, month);
+
+        YearMonth yearMonth = YearMonth.of(year, month);
+        LocalDate startDate = yearMonth.atDay(1);
+        LocalDate endDate = yearMonth.atEndOfMonth();
+
+        List<Schedule> schedules = scheduleRepository.findByUserIdAndScheduleDateBetween(userId, startDate, endDate);
+
+        log.info("월별 일정 조회 완료: 사용자 ID = {}, {}-{}, 일정 수 = {}",
+                userId, year, month, schedules.size());
+        return schedules;
+    }
+
+    /**
+     * 일정 정보를 수정합니다
+     */
+    @Override
+    @Transactional
+    public Schedule updateSchedule(Long scheduleId, Schedule schedule) {
+        log.info("일정 수정 요청: ID = {}", scheduleId);
+
+        Schedule existingSchedule = getScheduleById(scheduleId);
+
+        // 기존 일정 업데이트 (Builder 패턴 사용)
+        Schedule.ScheduleBuilder updatedBuilder = existingSchedule.toBuilder();
+
+        if (schedule.getTitle() != null) {
+            updatedBuilder.title(schedule.getTitle());
+        }
+        if (schedule.getMemo() != null) {
+            updatedBuilder.memo(schedule.getMemo());
+        }
+        if (schedule.getScheduleDate() != null) {
+            updatedBuilder.scheduleDate(schedule.getScheduleDate());
+        }
+        if (schedule.getStartTime() != null) {
+            updatedBuilder.startTime(schedule.getStartTime());
+        }
+        if (schedule.getEndTime() != null) {
+            updatedBuilder.endTime(schedule.getEndTime());
+        }
+        if (schedule.getLocation() != null) {
+            updatedBuilder.location(schedule.getLocation());
+        }
+        if (schedule.getAttendees() != null) {
+            updatedBuilder.attendees(schedule.getAttendees());
+        }
+        if (schedule.getIsCompleted() != null) {
+            updatedBuilder.isCompleted(schedule.getIsCompleted());
+        }
+
+        Schedule updatedSchedule = updatedBuilder.build();
+        Schedule savedSchedule = scheduleRepository.save(updatedSchedule);
+
+        log.info("일정 수정 완료: ID = {}", savedSchedule.getId());
+        return savedSchedule;
+    }
+
+    /**
+     * 일정을 삭제합니다
+     */
+    @Override
+    @Transactional
+    public void deleteSchedule(Long scheduleId) {
+        log.info("일정 삭제 요청: ID = {}", scheduleId);
+
+        Schedule schedule = getScheduleById(scheduleId);
+        scheduleRepository.delete(schedule);
+
+        log.info("일정 삭제 완료: ID = {}", scheduleId);
+    }
+
+    /**
+     * 일정의 완료 상태를 토글합니다
+     */
+    @Override
+    @Transactional
+    public Schedule toggleScheduleCompletion(Long scheduleId) {
+        log.info("일정 완료 상태 토글 요청: ID = {}", scheduleId);
+
+        Schedule schedule = getScheduleById(scheduleId);
+        boolean newCompletionStatus = !schedule.getIsCompleted();
+
+        Schedule updatedSchedule = schedule.toBuilder()
+                .isCompleted(newCompletionStatus)
+                .build();
+
+        Schedule savedSchedule = scheduleRepository.save(updatedSchedule);
+
+        log.info("일정 완료 상태 토글 완료: ID = {}, 완료 상태 = {}",
+                scheduleId, newCompletionStatus);
+        return savedSchedule;
+    }
+}
