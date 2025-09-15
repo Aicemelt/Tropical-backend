@@ -1,5 +1,6 @@
 package com.tropical.backend.diary.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.tropical.backend.auth.entity.User;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
@@ -17,10 +18,7 @@ import java.time.LocalDateTime;
  * 사용자 일기 정보 엔티티
  */
 @Entity
-@Table(name = "diary", indexes = {
-    @Index(name = "idx_diary_user_date", columnList = "user_id, diary_date"),
-    @Index(name = "idx_diary_date", columnList = "diary_date")
-})
+@Table(name = "diary")
 @EntityListeners(AuditingEntityListener.class)
 @Getter
 @Setter
@@ -47,6 +45,7 @@ public class Diary {
      * 지연 로딩(LAZY)을 사용하여 성능을 최적화하고,
      * 사용자별 일기 분리를 통해 개인정보 보안을 보장합니다.</p>
      */
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     @NotNull(message = "사용자는 필수입니다")
@@ -58,9 +57,9 @@ public class Diary {
      * <p>필수 입력 항목으로, 사용자가 일기를 쉽게 식별할 수 있는 제목입니다.
      * 최대 255자까지 입력 가능하며, 빈 값이나 공백만으로는 저장할 수 없습니다.</p>
      */
-    @Column(name = "title", nullable = false, length = 100)
+    @Column(name = "title", nullable = false, length = 200)
     @NotBlank(message = "일기 제목은 필수입니다")
-    @Size(max = 100, message = "일기 제목은 100자를 초과할 수 없습니다")
+    @Size(max = 200, message = "일기 제목은 200자를 초과할 수 없습니다")
     private String title;
 
     /**
@@ -72,7 +71,6 @@ public class Diary {
      */
     @Column(name = "content", columnDefinition = "TEXT")
     @NotBlank(message = "일기 내용은 필수입니다")
-    @Size(max = 5000, message = "일기 내용은 5000자를 초과할 수 없습니다")
     private String content;
 
     /**
@@ -95,8 +93,8 @@ public class Diary {
      *
      * @see Emotion
      */
-    @Column(name = "emotion", length = 20)
-    @Size(max = 20, message = "감정 정보는 20자를 초과할 수 없습니다")
+    @Column(name = "emotion", length = 50)
+    @Size(max = 50, message = "감정 정보는 50자를 초과할 수 없습니다")
     private String emotion;
 
     /**
@@ -108,8 +106,8 @@ public class Diary {
      *
      * @see Weather
      */
-    @Column(name = "weather", length = 20)
-    @Size(max = 20, message = "날씨 정보는 20자를 초과할 수 없습니다")
+    @Column(name = "weather", length = 50)
+    @Size(max = 50, message = "날씨 정보는 50자를 초과할 수 없습니다")
     private String weather;
 
     /**
