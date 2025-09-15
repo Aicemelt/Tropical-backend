@@ -105,6 +105,7 @@ jwt:
   refresh-token-expiration-ms: ${JWT_REFRESH_TOKEN_EXPIRATION:1209600000} # 14일 (밀리초)
   email-verify-expiration: ${JWT_EMAIL_VERIFY_EXPIRATION:1800000}         # 30분 (밀리초)
   password-reset-expiration: ${JWT_PASSWORD_RESET_EXPIRATION:3600000}     # 1시간 (밀리초)
+  onboarding-token-expiration-ms: ${JWT_ONBOARDING_TOKEN_EXPIRATION:1800000} # 30분 (밀리초)
 
 # ===============================
 # 애플리케이션 커스텀 설정
@@ -118,12 +119,6 @@ app:
     base-url: http://localhost:5005  # .env OAuth2 리다이렉트와 일치
   backend:
     base-url: ${APP_BASE_URL:http://localhost:9005}  # .env의 APP_BASE_URL
-
-  # JWT 토큰 관련 설정 (기존 호환성 유지)
-  jwt:
-    secret: ${JWT_SECRET}  # JWT 서명에 사용할 비밀키
-    access-token-expiration-ms: ${JWT_ACCESS_TOKEN_EXPIRATION}  # 액세스 토큰 만료시간 (밀리초)
-    refresh-token-expiration-ms: ${JWT_REFRESH_TOKEN_EXPIRATION}  # 리프레시 토큰 만료시간 (밀리초)
 
   # 이메일 발신/제어 및 인증 링크 베이스 URL
   mail:
