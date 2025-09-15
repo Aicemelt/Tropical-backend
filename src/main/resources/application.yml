@@ -111,7 +111,7 @@ jwt:
 # ===============================
 app:
   # 애플리케이션 이름
-  name: "Tropical"
+  name: "TropiCal"
 
   # URL 설정 (.env의 APP_BASE_URL 사용)
   frontend:
