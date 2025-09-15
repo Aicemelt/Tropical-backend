@@ -21,7 +21,7 @@ import java.util.List;
  * JWT 토큰 생성 및 검증 담당 컴포넌트
  *
  * <p>
- * Access Token, Refresh Token, 이메일 인증 Token의 생성과 검증을 담당하는
+ * Access Token, Refresh Token, 이메일 인증 Token, 온보딩 Token의 생성과 검증을 담당하는
  * 핵심 JWT 처리 클래스입니다. JJWT 0.12.x 버전에 맞춰 구현되었으며,
  * 시계 오차 허용과 강화된 보안 정책을 지원합니다.
  * </p>
@@ -31,6 +31,7 @@ import java.util.List;
  *   <li>JWT Access/Refresh Token 생성 및 검증</li>
  *   <li>이메일 인증용 단기 토큰 생성</li>
  *   <li>비밀번호 재설정용 토큰 생성</li>
+ *   <li>소셜 로그인 온보딩용 제한된 토큰 생성</li>
  *   <li>토큰 타입별 구분 및 검증</li>
  *   <li>시계 오차(±60초) 허용으로 안정성 향상</li>
  *   <li>Base64/UTF-8 키 지원 및 보안 길이 검증</li>
@@ -38,8 +39,8 @@ import java.util.List;
  * </ul>
  *
  * @author 왕택준
- * @version 0.4
- * @since 2025.09.14
+ * @version 0.5
+ * @since 2025.09.15
  */
 @Slf4j
 @Component
@@ -84,6 +85,14 @@ public class JwtTokenProvider {
      */
     @Value("${jwt.password-reset-expiration:3600000}")
     private long passwordResetExpirationMs;
+
+    /**
+     * 온보딩 토큰 만료 시간 (밀리초)
+     *
+     * <p>기본값: 1800000ms (30분)</p>
+     */
+    @Value("${jwt.onboarding-token-expiration-ms:1800000}")
+    private long onboardingTokenExpirationMs;
 
     /**
      * JWT 서명에 사용할 SecretKey 객체
@@ -228,6 +237,32 @@ public class JwtTokenProvider {
                 .compact();
     }
 
+    /**
+     * 온보딩 전용 토큰 생성
+     *
+     * <p>
+     * 소셜 로그인 후 온보딩 단계에서만 사용 가능한 제한된 권한의 토큰을 생성합니다.
+     * 이 토큰으로는 /api/auth/onboarding 엔드포인트에만 접근할 수 있습니다.
+     * </p>
+     *
+     * @param userId 사용자 ID
+     * @param email  사용자 이메일
+     * @return 온보딩 전용 JWT 토큰
+     */
+    public String createOnboardingToken(Long userId, String email) {
+        Instant now = Instant.now();
+
+        return Jwts.builder()
+                .subject(String.valueOf(userId))
+                .claim("email", email)
+                .claim("tokenType", "ONBOARDING")
+                .claim("purpose", "social_onboarding")
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(now.plusMillis(onboardingTokenExpirationMs))) // 밀리초로 통일
+                .signWith(secretKey, Jwts.SIG.HS256)
+                .compact();
+    }
+
     // ====================== 토큰 파싱 및 검증 메서드들 ======================
 
     /**
@@ -334,6 +369,16 @@ public class JwtTokenProvider {
     }
 
     /**
+     * 온보딩 토큰 타입 검증
+     *
+     * @param token 검증할 토큰
+     * @return 온보딩 토큰이면 true
+     */
+    public boolean isOnboardingToken(String token) {
+        return "ONBOARDING".equals(String.valueOf(parseClaims(token).get("tokenType")));
+    }
+
+    /**
      * JWT 토큰으로부터 Spring Security Authentication 객체 생성
      *
      * <p>
@@ -378,6 +423,17 @@ public class JwtTokenProvider {
         return Math.toIntExact(refreshTokenExpirationMs / 1000L);
     }
 
+    /**
+     * 온보딩 Token 만료 시간을 초 단위로 반환
+     *
+     * <p>쿠키의 Max-Age 설정에 사용할 수 있는 초 단위 값을 반환합니다.</p>
+     *
+     * @return 온보딩 Token 만료 시간 (초)
+     */
+    public int getOnboardingMaxAge() {
+        return Math.toIntExact(onboardingTokenExpirationMs / 1000L);
+    }
+
     /** ====================== 호환 메서드(기존 코드 대응) ====================== */
 
     /**
@@ -389,7 +445,7 @@ public class JwtTokenProvider {
     }
 
     /**
-     * 토큰에서 email 추출 (ACCESS/EMAIL_VERIFY에 존재, REFRESH에는 없을 수 있음)
+     * 토큰에서 email 추출 (ACCESS/EMAIL_VERIFY/ONBOARDING에 존재, REFRESH에는 없을 수 있음)
      */
     public String getEmailFromToken(String token) {
         Claims claims = parseClaims(token);

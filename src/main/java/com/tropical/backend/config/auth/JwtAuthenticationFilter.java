@@ -2,6 +2,7 @@ package com.tropical.backend.config.auth;
 
 import com.tropical.backend.auth.entity.User;
 import com.tropical.backend.auth.service.UserService;
+import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.Cookie;
@@ -10,6 +11,8 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
@@ -18,31 +21,39 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 /**
- * JWT 인증 필터 (쿠키 지원 추가)
+ * JWT 인증 필터 (온보딩 토큰 지원 + 성능 최적화)
  *
  * <p>
  * HTTP 요청에서 JWT 토큰을 추출하여 검증하고, 유효한 토큰인 경우
  * Spring Security Context에 사용자 인증 정보를 설정하는 필터입니다.
- * Authorization 헤더와 ACCESS_TOKEN 쿠키를 모두 지원합니다.
+ * Authorization 헤더와 ACCESS_TOKEN 쿠키를 모두 지원하며,
+ * ACCESS 토큰과 ONBOARDING 토큰을 구분하여 적절한 권한을 부여합니다.
  * </p>
  *
  * <p>주요 기능:</p>
  * <ul>
  *   <li>Authorization 헤더에서 Bearer 토큰 추출 (1순위)</li>
  *   <li>ACCESS_TOKEN 쿠키에서 토큰 추출 (2순위)</li>
- *   <li>JWT 토큰 유효성 검증</li>
- *   <li>토큰에서 사용자 정보 추출 및 검증</li>
+ *   <li>JWT 토큰 유효성 검증 및 타입별 권한 부여</li>
+ *   <li>토큰에서 사용자 정보 추출 및 DB 검증</li>
  *   <li>Spring Security Context에 인증 정보 설정</li>
- *   <li>인증 실패 시 적절한 로그 기록</li>
+ *   <li>성능 최적화: 중복 파싱 방지, 중복 인증 방지</li>
+ * </ul>
+ *
+ * <p>지원하는 토큰 타입:</p>
+ * <ul>
+ *   <li>ACCESS: 온보딩 완료 후 모든 API 접근 가능 (ROLE_USER)</li>
+ *   <li>ONBOARDING: 소셜 로그인 후 온보딩 API만 접근 가능 (ROLE_ONBOARDING)</li>
  * </ul>
  *
  * @author 왕택준
- * @version 0.3
- * @since 2025.09.14
+ * @version 0.5
+ * @since 2025.09.15
  */
 @Slf4j
 @Component
@@ -129,31 +140,51 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     /**
-     * JWT 토큰을 사용하여 인증 처리
+     * JWT 토큰을 사용하여 인증 처리 (MVP용 성능 최적화 버전)
      *
      * <p>
      * 토큰에서 사용자 정보를 추출하고 데이터베이스에서 사용자를 조회한 후,
      * Spring Security Context에 인증 정보를 설정합니다.
      * </p>
      *
+     * <p>성능 최적화 적용사항:</p>
+     * <ul>
+     *   <li>중복 파싱 방지: Claims를 한 번만 추출하여 재사용</li>
+     *   <li>중복 인증 방지: 이미 인증된 컨텍스트는 재처리 안함</li>
+     *   <li>직접 토큰 타입 체크: isXXXToken() 대신 Claims 직접 사용</li>
+     *   <li>권한 매핑 헬퍼: 가독성과 유지보수성 향상</li>
+     * </ul>
+     *
+     * <p>MVP 권한 시스템:</p>
+     * <ul>
+     *   <li>ROLE_USER (일반 API 접근) + ROLE_ONBOARDING (온보딩 전용) 만 사용</li>
+     *   <li>복잡한 권한 체계는 MVP 범위를 벗어나므로 의도적으로 제외됨</li>
+     * </ul>
+     *
      * @param request HTTP 요청 객체
      * @param token   검증된 JWT 토큰
      */
     private void processAuthentication(HttpServletRequest request, String token) {
         try {
-            // Access Token인지 확인
-            if (!jwtTokenProvider.isAccessToken(token)) {
-                log.warn("Access Token이 아닌 토큰으로 인증 시도: {}", request.getRequestURI());
+            // 1. 이미 인증된 컨텍스트면 재세팅 금지 (중복 필터 진입 방지, 성능 향상)
+            if (SecurityContextHolder.getContext().getAuthentication() != null) {
                 return;
             }
 
-            // 토큰에서 사용자 정보 추출
-            Long userId = jwtTokenProvider.getUserIdFromToken(token);
-            String email = jwtTokenProvider.getEmailFromToken(token);
+            // 2. 중복 파싱 방지: 한 번만 Claims 추출하고 캐시해서 사용
+            Claims claims = jwtTokenProvider.parseClaims(token);
+            String tokenType = String.valueOf(claims.get("tokenType"));
+            Long userId = Long.valueOf(claims.getSubject());
+            String email = claims.get("email", String.class);
 
-            // JWT의 사용자 정보와 DB의 사용자 정보가 일치하는지 검증
+            // 3. 토큰 타입 체크: ACCESS 또는 ONBOARDING만 허용
+            if (!"ACCESS".equals(tokenType) && !"ONBOARDING".equals(tokenType)) {
+                log.warn("인증에 사용할 수 없는 토큰 타입: {} - URI: {}", tokenType, request.getRequestURI());
+                return;
+            }
+
+            // 4. JWT의 사용자 정보와 DB의 사용자 정보가 일치하는지 검증
             Optional<User> userOpt = userService.findUserForTokenValidation(userId, email);
-
             if (userOpt.isEmpty()) {
                 log.warn("JWT 토큰의 사용자 정보가 DB와 일치하지 않음 - ID: {}, Email: {}", userId, email);
                 return;
@@ -161,8 +192,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             User user = userOpt.get();
 
-            // UserDetails 생성 및 SecurityContext에 인증 정보 설정
-            UserDetails userDetails = createUserDetails(user);
+            // 5. 토큰 타입에 따른 권한 설정
+            Collection<? extends GrantedAuthority> authorities = mapAuthorities(tokenType);
+            if (authorities.isEmpty()) {
+                log.warn("알 수 없는 토큰 타입으로 권한 매핑 실패: {}", tokenType);
+                return;
+            }
+
+            // 6. UserDetails 생성 및 SecurityContext에 인증 정보 설정
+            UserDetails userDetails = createUserDetails(user, authorities);
             UsernamePasswordAuthenticationToken authenticationToken =
                     new UsernamePasswordAuthenticationToken(
                             userDetails,
@@ -173,7 +211,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             authenticationToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
             SecurityContextHolder.getContext().setAuthentication(authenticationToken);
 
-            log.debug("JWT 인증 완료 - 사용자 ID: {}, URI: {}", userId, request.getRequestURI());
+            log.debug("JWT 인증 완료 - 사용자 ID: {}, 토큰 타입: {}, 권한: {}, URI: {}",
+                    userId, tokenType, authorities, request.getRequestURI());
 
         } catch (Exception e) {
             log.warn("JWT 인증 처리 실패: {}", e.getMessage());
@@ -182,23 +221,71 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     /**
-     * User 엔터티를 UserDetails 객체로 변환
+     * 토큰 타입에 따른 권한 매핑 (MVP 전용)
+     *
+     * <p>
+     * MVP 범위 준수 - 권한 시스템 최소화<br>
+     * 현재 MVP 단계에서는 단 2개의 권한만 사용합니다:
+     * </p>
+     * <ul>
+     *   <li>ROLE_USER: 온보딩 완료 후 모든 API 접근 가능</li>
+     *   <li>ROLE_ONBOARDING: 소셜 로그인 후 온보딩 API만 접근 가능</li>
+     * </ul>
+     *
+     * <p>
+     * ⚠️ 의도적으로 제외된 권한들 (MVP 범위 초과)<br>
+     * 다음 권한들은 MVP에 불필요하므로 의도적으로 구현하지 않았습니다:
+     * </p>
+     * <ul>
+     *   <li>ROLE_ADMIN - 관리자 기능이 MVP에 없음</li>
+     *   <li>ROLE_MANAGER - 중간 관리 권한이 MVP에 불필요</li>
+     *   <li>ROLE_PREMIUM - 유료 기능이 MVP 범위 밖</li>
+     *   <li>세분화된 권한 (READ/WRITE/DELETE) - 과도한 엔지니어링</li>
+     * </ul>
+     *
+     * <p>
+     * YAGNI 원칙 적용<br>
+     * "You Aren't Gonna Need It" - 현재 실제로 사용하는 기능만 구현하고,
+     * 추가 권한은 비즈니스 요구사항이 명확해진 후 도입 예정입니다.
+     * </p>
+     *
+     * <p>
+     * 향후 확장 방법<br>
+     * 새로운 권한이 필요할 때는 이 메서드에 case를 추가하고
+     * SecurityConfig에서 해당 권한에 대한 엔드포인트 매핑을 설정하면 됩니다.
+     * </p>
+     *
+     * @param tokenType JWT 토큰의 tokenType 클레임 값 ("ACCESS" 또는 "ONBOARDING")
+     * @return 해당 토큰 타입에 맞는 권한 목록
+     */
+    private Collection<? extends GrantedAuthority> mapAuthorities(String tokenType) {
+        return switch (tokenType) {
+            case "ACCESS" -> List.of(new SimpleGrantedAuthority("ROLE_USER"));       // 정식 사용자 권한
+            case "ONBOARDING" -> List.of(new SimpleGrantedAuthority("ROLE_ONBOARDING")); // 온보딩 전용 권한
+            default -> List.of(); // 알 수 없는 토큰 타입은 빈 권한 반환 (보안상 안전)
+        };
+    }
+
+    /**
+     * User 엔터티를 UserDetails 객체로 변환 (권한을 파라미터로 받도록 수정)
      *
      * <p>
      * Spring Security가 인식할 수 있는 UserDetails 인터페이스 구현체를 생성합니다.
-     * 현재는 권한(ROLE)을 단순하게 처리하지만, 향후 역할 기반 권한 시스템 확장 가능합니다.
+     * username에는 사용자 ID를 사용하여 이후 서비스에서 ID 기반 조회가 쉽도록 하며,
+     * 토큰 타입에 따라 동적으로 권한을 설정할 수 있도록 파라미터로 받습니다.
      * </p>
      *
-     * @param user 사용자 엔터티
+     * @param user        사용자 엔터티
+     * @param authorities 부여할 권한 목록 (토큰 타입에 따라 결정됨)
      * @return UserDetails 구현체
      */
-    private UserDetails createUserDetails(User user) {
+    private UserDetails createUserDetails(User user, Collection<? extends GrantedAuthority> authorities) {
         return org.springframework.security.core.userdetails.User.builder()
-                .username(String.valueOf(user.getId()))  // username에 사용자 ID 사용
-                .password("")  // JWT 인증에서는 비밀번호 불필요
-                .authorities(Collections.singletonList(() -> "ROLE_USER"))  // 기본 사용자 권한
+                .username(String.valueOf(user.getId()))    // 주 식별자로 사용자 ID 사용
+                .password("")                              // JWT 인증에서는 비밀번호 불필요
+                .authorities(authorities)                  // 파라미터로 받은 권한 설정
                 .accountExpired(false)
-                .accountLocked(!user.isActive())  // 비활성 계정은 잠금 처리
+                .accountLocked(!user.isActive())           // 비활성 계정은 잠금 처리
                 .credentialsExpired(false)
                 .disabled(false)
                 .build();

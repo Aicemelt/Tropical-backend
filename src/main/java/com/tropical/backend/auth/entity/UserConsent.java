@@ -1,5 +1,6 @@
 package com.tropical.backend.auth.entity;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -98,6 +99,7 @@ public class UserConsent {
      * <p>
      * AI 추천 시스템의 데이터 소스와 직접 연결되어 있으며,
      * 각 동의 항목에 따라 수집 및 활용되는 데이터가 결정됩니다.
+     * JSON API에서는 camelCase로 직렬화/역직렬화됩니다.
      * </p>
      */
     public enum ConsentType {
@@ -108,6 +110,7 @@ public class UserConsent {
          *
          * <p>플랫폼 이용을 위한 기본 약관 동의입니다.</p>
          */
+        @JsonProperty("termsOfService")
         TERMS_OF_SERVICE("서비스 이용약관", true),
 
         /**
@@ -115,6 +118,7 @@ public class UserConsent {
          *
          * <p>개인정보 수집·이용을 위한 법적 필수 동의입니다.</p>
          */
+        @JsonProperty("privacyPolicy")
         PRIVACY_POLICY("개인정보처리방침", true),
 
         /**
@@ -125,6 +129,7 @@ public class UserConsent {
          * AI 스몰 토크를 제공하기 위한 필수 동의입니다.
          * </p>
          */
+        @JsonProperty("calendarPersonalization")
         CALENDAR_PERSONALIZATION("일정 기반 추천 동의", true),
 
         // ===== 선택 동의 (AI 추가 개인화) =====
@@ -137,6 +142,7 @@ public class UserConsent {
          * 이를 바탕으로 한 개인화된 AI 추천을 제공합니다.
          * </p>
          */
+        @JsonProperty("diaryPersonalization")
         DIARY_PERSONALIZATION("일기 기반 추천 동의", false),
 
         /**
@@ -147,6 +153,7 @@ public class UserConsent {
          * 생산성 향상을 위한 개인화된 AI 추천을 제공합니다.
          * </p>
          */
+        @JsonProperty("todoPersonalization")
         TODO_PERSONALIZATION("할일 기반 추천 동의", false),
 
         /**
@@ -157,6 +164,7 @@ public class UserConsent {
          * 라이프스타일 개선을 위한 개인화된 AI 추천을 제공합니다.
          * </p>
          */
+        @JsonProperty("bucketPersonalization")
         BUCKET_PERSONALIZATION("버킷리스트 기반 추천 동의", false);
 
         private final String description;

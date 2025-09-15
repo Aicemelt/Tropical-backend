@@ -369,20 +369,23 @@ public class AuthController {
     }
 
     /**
-     * 온보딩 완료 처리 (Deprecated - 로컬 계정용)
+     * 소셜 로그인 온보딩 완료 처리 (소셜 계정 전용)
      *
      * <p>
-     * 로컬 계정의 경우 회원가입 단계에서 온보딩을 완료하므로 더 이상 사용되지 않습니다.
-     * 소셜 로그인 전용으로 추후 전환 예정입니다.
+     * 소셜 로그인 후 최초 1회 약관 동의와 추가 정보를 입력받아 온보딩을 완료합니다.
+     * 로컬 계정은 회원가입 단계에서 온보딩이 완료되므로 이 엔드포인트는 소셜 계정 전용입니다.
      * </p>
      *
-     * @deprecated 로컬 계정은 회원가입에서 온보딩 완료, 소셜 전용으로 전환 예정
+     * @param onboardingRequest 동의 정보 (필수 동의, 선택 동의)
+     * @param response          HTTP 응답 객체 (정식 토큰 쿠키 설정용)
+     * @return 온보딩 완료 결과 및 JWT 토큰 발급
      */
-    @Deprecated
     @PostMapping("/onboarding")
-    public ResponseEntity<?> completeOnboarding(@Valid @RequestBody OnboardingRequest onboardingRequest) {
+    public ResponseEntity<?> completeSocialOnboarding(@Valid @RequestBody OnboardingRequest onboardingRequest,
+                                                      HttpServletResponse response) {
 
         // JWT 필터에서 설정한 SecurityContext에서 현재 사용자 ID 추출
+        // 이 시점에서는 ROLE_ONBOARDING 권한으로 인증된 상태여야 함
         Long userId = JwtAuthenticationFilter.getCurrentUserId();
         if (userId == null) {
             return ResponseEntity.badRequest().body(Map.of(
@@ -392,23 +395,32 @@ public class AuthController {
             ));
         }
 
-        log.info("온보딩 완료 요청 (Deprecated) - 사용자 ID: {}", userId);
+        log.info("소셜 계정 온보딩 완료 요청 - 사용자 ID: {}", userId);
 
         try {
             // 사용자 조회 및 계정 타입 확인
             User user = userService.findActiveUserById(userId)
                     .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다"));
 
-            // 로컬 계정인 경우 에러 응답
+            // 로컬 계정 접근 차단: 로컬 계정은 회원가입 시 이미 온보딩 완료
             if (user.isLocalAccount()) {
-                return ResponseEntity.status(HttpStatus.GONE).body(Map.of(
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
                         "success", false,
                         "message", "로컬 계정은 회원가입 단계에서 온보딩이 완료됩니다",
-                        "errorCode", "ENDPOINT_DEPRECATED_FOR_LOCAL"
+                        "errorCode", "LOCAL_ACCOUNT_NOT_ALLOWED"
                 ));
             }
 
-            // 소셜 계정 온보딩 처리 (기존 로직 유지)
+            // 이미 온보딩 완료된 소셜 계정 체크: 중복 처리 방지
+            if (user.isOnboardingCompleted()) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
+                        "success", false,
+                        "message", "이미 온보딩이 완료된 계정입니다",
+                        "errorCode", "ONBOARDING_ALREADY_COMPLETED"
+                ));
+            }
+
+            // 동의 정보 처리: 필수 약관 동의 검증 및 모든 동의 정보 저장
             boolean consentResult = userConsentService.processOnboardingConsents(
                     userId,
                     onboardingRequest.getAllConsents()
@@ -422,6 +434,7 @@ public class AuthController {
                 ));
             }
 
+            // 온보딩 완료 처리: 사용자 상태를 온보딩 완료로 변경
             boolean onboardingResult = userService.completeOnboarding(userId);
 
             if (!onboardingResult) {
@@ -432,21 +445,45 @@ public class AuthController {
                 ));
             }
 
-            // 완료된 사용자 정보 조회
+            // ===== 토큰 교체 프로세스 =====
+            // 기존 ONBOARDING 토큰을 정식 ACCESS/REFRESH 토큰으로 교체
+            // 이제 사용자는 ROLE_USER 권한으로 모든 API에 접근 가능
+            String accessToken = jwtTokenProvider.createAccessToken(user.getId(), user.getEmail());
+            String refreshToken = jwtTokenProvider.createRefreshToken(user.getId());
+
+            // Access Token 만료 시간 계산 (응답용)
+            Date expirationDate = jwtTokenProvider.getExpirationFromToken(accessToken);
+            LocalDateTime expiresAt = expirationDate.toInstant()
+                    .atZone(ZoneId.systemDefault())
+                    .toLocalDateTime();
+
+            // 정식 토큰으로 쿠키 교체: 기존 ONBOARDING 토큰 쿠키를 덮어씀
+            int accessMaxAge = jwtTokenProvider.getAccessMaxAge();
+            int refreshMaxAge = jwtTokenProvider.getRefreshMaxAge();
+
+            response.addCookie(CookieUtil.build("ACCESS_TOKEN", accessToken, accessMaxAge));
+            response.addCookie(CookieUtil.build("REFRESH_TOKEN", refreshToken, refreshMaxAge));
+
+            // 온보딩 완료된 최신 사용자 정보 조회
             User updatedUser = userService.findActiveUserById(userId)
                     .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다"));
 
-            log.info("소셜 계정 온보딩 완료 - 사용자 ID: {}", userId);
+            // 응답 생성: 정식 토큰과 업데이트된 사용자 정보 포함
+            TokenResponse.TokenResponseWithUser tokenResponse = TokenResponse.withUser(
+                    accessToken, refreshToken, expiresAt, UserResponse.from(updatedUser)
+            );
+
+            log.info("소셜 계정 온보딩 완료 - 사용자 ID: {}, ONBOARDING → ACCESS 토큰 교체 완료", userId);
 
             return ResponseEntity.ok(Map.of(
                     "success", true,
                     "message", "온보딩이 완료되었습니다",
-                    "user", UserResponse.from(updatedUser),
-                    "nextStep", "dashboard"
+                    "data", tokenResponse,
+                    "nextStep", "dashboard"  // 이제 대시보드로 이동 가능
             ));
 
         } catch (IllegalArgumentException e) {
-            log.warn("온보딩 완료 실패 - 사용자 ID: {}, 사유: {}", userId, e.getMessage());
+            log.warn("소셜 온보딩 완료 실패 - 사용자 ID: {}, 사유: {}", userId, e.getMessage());
 
             return ResponseEntity.badRequest().body(Map.of(
                     "success", false,
