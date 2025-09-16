@@ -68,9 +68,15 @@ public class UserService {
         log.info("로컬 계정 생성 시작 - 이메일: {}, 닉네임: {}", email, nickname);
 
         // 이메일 중복 체크 (활성 계정만)
-        if (userRepository.existsByEmailAndActive(email)) {
-            log.warn("이메일 중복 - 이미 존재하는 이메일: {}", email);
-            throw new IllegalArgumentException("이미 사용 중인 이메일입니다: " + email);
+        // if (userRepository.existsByEmailAndActive(email)) {
+        //     log.warn("이메일 중복 - 이미 존재하는 이메일: {}", email);
+        //     throw new IllegalArgumentException("이미 사용 중인 이메일입니다: " + email);
+        // }
+
+        // 이메일 중복 체크 (활성화 된 로컬 계정만)
+        if (userRepository.existsByEmailAndActiveAndLocal(email)) {
+            log.warn("로컬 계정 이메일 중복 - 이미 존재하는 로컬 이메일: {}", email);
+            throw new IllegalArgumentException("이미 사용 중인 로컬 계정 이메일입니다: " + email);
         }
 
         // 닉네임 중복 체크 제거 (중복 허용)
