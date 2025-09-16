@@ -34,6 +34,7 @@ dependencies {
     // --- Spring 핵심 스타터 ---
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'  // JPA + Hibernate
     implementation 'org.springframework.boot:spring-boot-starter-web'       // Spring MVC + Jackson(REST)
+    implementation 'org.springframework.boot:spring-boot-starter-webflux'   // WebClient(비동기 HTTP 클라이언트)
     implementation 'org.springframework.boot:spring-boot-devtools'          // 자동 리스타트/LiveReload (개발 편의) *운영 비권장
 
     // --- 보안 / 인증 ---
