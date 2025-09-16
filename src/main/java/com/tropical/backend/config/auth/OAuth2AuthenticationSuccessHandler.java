@@ -70,8 +70,8 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
             boolean isNewUser = false;
 
             if (existingSocialAccount.isPresent()) {
-                // 기존 사용자 로그인
-                user = existingSocialAccount.get().getUser();
+                Long userId = existingSocialAccount.get().getUser().getId(); // ID만 안전하게 추출
+                user = userService.getById(userId);
                 userService.updateLastLoginTime(user.getId());
                 log.info("기존 소셜 사용자 로그인 - 사용자 ID: {}, 제공자: {}", user.getId(), provider);
             } else {

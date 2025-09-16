@@ -185,6 +185,35 @@ public class UserService {
     }
 
     /**
+     * 사용자 ID로 완전한 User 엔티티 조회
+     *
+     * <p>
+     * OAuth2 소셜 로그인 시 LazyInitializationException 방지를 위해 사용됩니다.
+     * Hibernate 프록시가 아닌 실제 엔티티를 반환하여 트랜잭션 밖에서도
+     * 안전하게 필드에 접근할 수 있습니다. 조회 시 모든 필드를 강제 초기화하여
+     * 'no session' 에러를 방지합니다.
+     * </p>
+     *
+     * @param userId 조회할 사용자 ID
+     * @return 완전히 초기화된 User 엔티티
+     * @throws IllegalArgumentException 사용자를 찾을 수 없는 경우
+     */
+    @Transactional(readOnly = true)
+    public User getById(Long userId) {
+        log.debug("User 엔티티 조회 시작 - 사용자 ID: {}", userId);
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + userId));
+
+        // Hibernate 프록시 강제 초기화
+        // OAuth2 핸들러에서 isOnboardingCompleted() 등의 필드 접근 시 안전성 보장
+        boolean initialized = user.isOnboardingCompleted();
+
+        log.debug("User 엔티티 초기화 완료 - 사용자 ID: {}, 온보딩 완료: {}", userId, initialized);
+        return user;
+    }
+
+    /**
      * 이메일 인증 완료 처리
      *
      * <p>

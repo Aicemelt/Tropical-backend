@@ -97,6 +97,9 @@ public class SecurityConfig {
                 // 일반적으로 CSRF 공격에 취약하지 않음
                 .csrf(csrf -> csrf.disable())
 
+                // 폼 로그인 비활성화: /login 경로로 인한 500 에러 방지
+                .formLogin(form -> form.disable())
+
                 // CORS 설정: CorsConfig의 corsConfigurationSource() Bean을 자동으로 적용
                 // 프론트엔드 도메인(localhost:5005)에서의 API 호출을 허용
                 .cors(cors -> {
@@ -141,7 +144,18 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                                 // Public 엔드포인트: 인증 없이 누구나 접근 가능
                                 .requestMatchers(
+
+                                        // ===============================
+                                        // 브라우저 잡음 제거용 경로
+                                        // ===============================
+                                        "/favicon.ico",                // 브라우저 파비콘 요청 (401 에러 방지)
+                                        "/css/**", "/js/**", "/images/**",  // 정적 리소스 (필요시)
+                                        "/.well-known/**",             // 브라우저 자동 요청 경로 (DevTools 등)
                                         "/error",                      // Spring Boot 기본 에러 페이지
+
+                                        // ===============================
+                                        // 실제 서비스 공개 API
+                                        // ===============================
                                         "/api/health",                 // 서버 상태 체크 (모니터링용)
                                         "/api/auth/signup",            // 이메일 회원가입
                                         "/api/auth/verify",            // 이메일 인증 확인
