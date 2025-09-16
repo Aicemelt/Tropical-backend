@@ -45,6 +45,7 @@ public class Diary {
      * 지연 로딩(LAZY)을 사용하여 성능을 최적화하고,
      * 사용자별 일기 분리를 통해 개인정보 보안을 보장합니다.</p>
      */
+
     @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
@@ -57,9 +58,11 @@ public class Diary {
      * <p>필수 입력 항목으로, 사용자가 일기를 쉽게 식별할 수 있는 제목입니다.
      * 최대 255자까지 입력 가능하며, 빈 값이나 공백만으로는 저장할 수 없습니다.</p>
      */
+
     @Column(name = "title", nullable = false, length = 200)
     @NotBlank(message = "일기 제목은 필수입니다")
     @Size(max = 200, message = "일기 제목은 200자를 초과할 수 없습니다")
+
     private String title;
 
     /**
@@ -69,6 +72,7 @@ public class Diary {
      * TEXT 타입으로 긴 내용도 저장 가능하며, 사용자의 하루 일상과
      * 생각을 자유롭게 기록할 수 있습니다.</p>
      */
+
     @Column(name = "content", columnDefinition = "TEXT")
     @NotBlank(message = "일기 내용은 필수입니다")
     private String content;
@@ -85,6 +89,7 @@ public class Diary {
     private LocalDate diaryDate;
 
     /**
+
      * 감정 상태
      *
      * <p>일기 작성 당시의 감정 상태를 나타내는 필수 필드입니다.
@@ -93,9 +98,11 @@ public class Diary {
      *
      * @see Emotion
      */
+
     @Column(name = "emotion", length = 50)
     @Size(max = 50, message = "감정 정보는 50자를 초과할 수 없습니다")
     private String emotion;
+
 
     /**
      * 날씨 정보
@@ -106,18 +113,22 @@ public class Diary {
      *
      * @see Weather
      */
+
     @Column(name = "weather", length = 50)
     @Size(max = 50, message = "날씨 정보는 50자를 초과할 수 없습니다")
     private String weather;
 
     /**
+
      * 일기 생성 시간
      *
      * <p>일기가 처음 작성된 시간을 자동으로 기록합니다.
      * JPA Auditing 기능을 통해 엔티티 생성 시 자동 설정됩니다.</p>
      */
     @CreatedDate
+
     @Column(name = "created_at", nullable = false, updatable = false)
+
     private LocalDateTime createdAt;
 
     /**
@@ -129,4 +140,6 @@ public class Diary {
     @LastModifiedDate
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
+
 }
+

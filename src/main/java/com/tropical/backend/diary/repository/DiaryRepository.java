@@ -1,6 +1,8 @@
 package com.tropical.backend.diary.repository;
 
 import com.tropical.backend.diary.entity.Diary;
+import com.tropical.backend.diary.entity.Emotion;
+import com.tropical.backend.diary.entity.Weather;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -26,6 +28,7 @@ import java.util.Optional;
 public interface DiaryRepository extends JpaRepository<Diary, Long> {
 
     /**
+
      * 사용자의 모든 일기를 조회합니다
      *
      * @param userId 사용자 ID

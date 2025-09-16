@@ -40,7 +40,8 @@ public class Todo {
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
-    @Column(name = "updated_at", nullable = false)
+    // updated_at은 nullable로 설정 - 최초 생성 시에는 null, 수정 시에만 값 설정
+    @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
     @PreUpdate
