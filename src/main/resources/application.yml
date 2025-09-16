@@ -97,14 +97,28 @@ spring:
             user-name-attribute: response  # 네이버 응답 구조에서 사용자 정보가 담긴 키
 
 # ===============================
+# JWT 토큰 설정 (JwtTokenProvider와 매칭)
+# ===============================
+jwt:
+  secret: ${JWT_SECRET:VGhpcy1pcy1hLXNhbXBsZS1iYXNlNjQtc2VjcmV0LXB1dC15b3VyLW93bg==}
+  access-token-expiration-ms: ${JWT_ACCESS_TOKEN_EXPIRATION:900000}       # 15분 (밀리초)
+  refresh-token-expiration-ms: ${JWT_REFRESH_TOKEN_EXPIRATION:1209600000} # 14일 (밀리초)
+  email-verify-expiration: ${JWT_EMAIL_VERIFY_EXPIRATION:1800000}         # 30분 (밀리초)
+  password-reset-expiration: ${JWT_PASSWORD_RESET_EXPIRATION:3600000}     # 1시간 (밀리초)
+  onboarding-token-expiration-ms: ${JWT_ONBOARDING_TOKEN_EXPIRATION:1800000} # 30분 (밀리초)
+
+# ===============================
 # 애플리케이션 커스텀 설정
 # ===============================
 app:
-  # JWT 토큰 관련 설정
-  jwt:
-    secret: ${JWT_SECRET}  # JWT 서명에 사용할 비밀키
-    access-token-expiration-ms: ${JWT_ACCESS_TOKEN_EXPIRATION}  # 액세스 토큰 만료시간 (밀리초)
-    refresh-token-expiration-ms: ${JWT_REFRESH_TOKEN_EXPIRATION}  # 리프레시 토큰 만료시간 (밀리초)
+  # 애플리케이션 이름
+  name: "TropiCal"
+
+  # URL 설정 (.env의 APP_BASE_URL 사용)
+  frontend:
+    base-url: http://localhost:5005  # .env OAuth2 리다이렉트와 일치
+  backend:
+    base-url: ${APP_BASE_URL:http://localhost:9005}  # .env의 APP_BASE_URL
 
   # 이메일 발신/제어 및 인증 링크 베이스 URL
   mail:
@@ -114,7 +128,6 @@ app:
     redirect-to: ${MAIL_REDIRECT_TO:}              # (선택) 모든 수신자를 이 주소로 강제 리다이렉트
     bcc: ${MAIL_BCC:}                              # (선택) 우리 팀 BCC 사본 (쉼표로 다중)
     reply-to: ${MAIL_REPLY_TO:}                    # (선택) 회신 받을 주소
-  base-url: ${APP_BASE_URL:http://localhost:9005}  # 이메일 인증 링크 등에 사용할 백엔드 베이스 URL
 
   # OAuth2 로그인 후 리다이렉트 URL 설정
   oauth2-success-redirect-url: http://localhost:5005/dashboard  # 로그인 성공시 이동할 프론트엔드 URL
@@ -144,3 +157,4 @@ logging:
     com.tropical.backend: DEBUG  # 애플리케이션 패키지의 로그 레벨 (개발시 DEBUG 권장)
     org.springframework.security: INFO  # Spring Security 로그 레벨
     org.hibernate.SQL: INFO  # Hibernate SQL 로그 레벨
+    org.springframework.mail: DEBUG  # 이메일 발송 로그 레벨 (개발시)

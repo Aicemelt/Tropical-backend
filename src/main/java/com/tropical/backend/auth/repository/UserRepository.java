@@ -173,6 +173,36 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByEmailAndUnverified(@Param("email") String email);
 
     /**
+     * 로컬 계정 이메일 중복 확인
+     *
+     * <p>
+     * 로컬 계정끼리만 이메일 중복을 체크합니다.
+     * 소셜 계정과는 별도로 관리하여 같은 이메일의 다중 계정을 허용합니다.
+     * </p>
+     *
+     * @param email 확인할 이메일
+     * @return 로컬 계정 중 해당 이메일이 존재하면 true, 사용 가능하면 false
+     */
+    @Query("SELECT CASE WHEN COUNT(u) > 0 THEN true ELSE false END " +
+           "FROM User u WHERE u.email = :email AND u.status = 'ACTIVE' AND u.accountType = 'LOCAL'")
+    boolean existsByEmailAndActiveAndLocal(@Param("email") String email);
+
+    /**
+     * 이메일 인증 완료 여부 확인
+     *
+     * <p>
+     * 이메일 인증이 이미 완료된 사용자인지 빠르게 확인합니다.
+     * 중복 인증 요청 처리 시 사용됩니다.
+     * </p>
+     *
+     * @param email 확인할 이메일
+     * @return 해당 이메일이 인증 완료된 상태면 true, 아니면 false
+     */
+    @Query("SELECT CASE WHEN COUNT(u) > 0 THEN true ELSE false END " +
+           "FROM User u WHERE u.email = :email AND u.emailVerified = true AND u.status = 'ACTIVE'")
+    boolean existsByEmailAndVerified(@Param("email") String email);
+
+    /**
      * 특정 기간 이후 마지막 로그인한 사용자 목록 조회
      *
      * <p>
