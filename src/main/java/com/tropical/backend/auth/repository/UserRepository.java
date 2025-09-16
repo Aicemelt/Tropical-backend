@@ -173,6 +173,21 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByEmailAndUnverified(@Param("email") String email);
 
     /**
+     * 이메일 인증 완료 여부 확인
+     *
+     * <p>
+     * 이메일 인증이 이미 완료된 사용자인지 빠르게 확인합니다.
+     * 중복 인증 요청 처리 시 사용됩니다.
+     * </p>
+     *
+     * @param email 확인할 이메일
+     * @return 해당 이메일이 인증 완료된 상태면 true, 아니면 false
+     */
+    @Query("SELECT CASE WHEN COUNT(u) > 0 THEN true ELSE false END " +
+           "FROM User u WHERE u.email = :email AND u.emailVerified = true AND u.status = 'ACTIVE'")
+    boolean existsByEmailAndVerified(@Param("email") String email);
+
+    /**
      * 특정 기간 이후 마지막 로그인한 사용자 목록 조회
      *
      * <p>
