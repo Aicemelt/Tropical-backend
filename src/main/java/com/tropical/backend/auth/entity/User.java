@@ -32,7 +32,7 @@ import java.util.List;
  * </ul>
  *
  * @author 왕택준
- * @version 0.1
+ * @version 0.2
  * @since 2025.09.13
  */
 @Entity
@@ -47,6 +47,7 @@ import java.util.List;
         // }
 )
 @Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @ToString(exclude = {"socialAccounts", "userConsents", "schedules", "diaries", "todos", "bucketLists", "smalltalkTopics"})
@@ -96,6 +97,14 @@ public class User {
     private Boolean emailVerified = false;
 
     /**
+     * 이메일 인증 완료 시간
+     *
+     * <p>이메일 인증이 완료된 정확한 시간을 기록합니다.</p>
+     */
+    @Column(name = "email_verified_at")
+    private LocalDateTime emailVerifiedAt;
+
+    /**
      * 계정 타입 구분
      *
      * @see AccountType
@@ -108,11 +117,11 @@ public class User {
      * 사용자 닉네임
      *
      * <p>
-     * 전체 시스템에서 유일해야 하며, 소셜 로그인 시 중복되면
-     * 자동으로 숫자 suffix가 추가됩니다. (예: "홍길동1", "홍길동2")
+     * 사용자를 식별하는 표시명으로 사용됩니다.
+     * 닉네임 중복이 허용되며, 필요시 사용자 ID로 구분합니다.
      * </p>
      */
-    @Column(nullable = false, unique = true, length = 50)
+    @Column(nullable = false, length = 50)
     private String nickname;
 
     /**
@@ -271,8 +280,6 @@ public class User {
      * 동시에 연동할 수 있습니다.
      * </p>
      */
-    // orphanRemoval 제거: 서비스에서 명시적 삭제 정책으로 변경
-    // @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true) // 기존 코드
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
     @Builder.Default
     private List<SocialAccount> socialAccounts = new ArrayList<>();
@@ -282,8 +289,6 @@ public class User {
      *
      * <p>필수 동의와 선택 동의 정보를 모두 포함합니다.</p>
      */
-    // orphanRemoval 제거: GDPR 준수를 위한 명시적 개인정보 삭제 정책
-    // @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true) // 기존 코드
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
     @Builder.Default
     private List<UserConsent> userConsents = new ArrayList<>();
@@ -387,7 +392,7 @@ public class User {
                 .passwordHash(passwordHash)
                 .nickname(nickname)
                 .accountType(AccountType.LOCAL)
-                .emailVerified(false)
+                .emailVerified(false)  // 이메일 인증 필요한 상태로 생성
                 .build();
     }
 
@@ -420,6 +425,7 @@ public class User {
      */
     public void verifyEmail() {
         this.emailVerified = true;
+        this.emailVerifiedAt = LocalDateTime.now();
     }
 
     /**

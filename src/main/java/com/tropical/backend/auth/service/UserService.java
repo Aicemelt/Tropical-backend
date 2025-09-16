@@ -34,7 +34,7 @@ import java.util.Optional;
  * </ul>
  *
  * @author 왕택준
- * @version 0.1
+ * @version 0.2
  * @since 2025.09.13
  */
 @Service
@@ -48,19 +48,21 @@ public class UserService {
     private final SocialAccountRepository socialAccountRepository;
     private final PasswordEncoder passwordEncoder;
 
+
     /**
      * 로컬 계정 사용자 생성
      *
      * <p>
      * 이메일과 비밀번호를 사용하는 로컬 계정을 생성합니다.
      * 비밀번호는 자동으로 해시화되며, 이메일 인증이 필요한 상태로 생성됩니다.
+     * 닉네임 중복은 허용됩니다.
      * </p>
      *
      * @param email    사용자 이메일 (로그인 ID)
      * @param password 평문 비밀번호 (자동 해시화됨)
      * @param nickname 사용자 닉네임
      * @return 생성된 사용자 엔터티
-     * @throws IllegalArgumentException 이메일 또는 닉네임이 이미 존재하는 경우
+     * @throws IllegalArgumentException 이메일이 이미 존재하는 경우
      */
     @Transactional
     public User createLocalUser(String email, String password, String nickname) {
@@ -72,11 +74,7 @@ public class UserService {
             throw new IllegalArgumentException("이미 사용 중인 이메일입니다: " + email);
         }
 
-        // 닉네임 중복 체크
-        if (userRepository.existsByNickname(nickname)) {
-            log.warn("닉네임 중복 - 이미 존재하는 닉네임: {}", nickname);
-            throw new IllegalArgumentException("이미 사용 중인 닉네임입니다: " + nickname);
-        }
+        // 닉네임 중복 체크 제거 (중복 허용)
 
         // 비밀번호 해시화
         String hashedPassword = passwordEncoder.encode(password);
@@ -94,7 +92,7 @@ public class UserService {
      *
      * <p>
      * OAuth2를 통한 소셜 로그인으로 가입하는 사용자를 생성합니다.
-     * 닉네임 중복 시 자동으로 숫자 suffix를 추가하여 유일성을 보장합니다.
+     * 닉네임 중복이 허용되므로 suffix 추가 로직을 제거했습니다.
      * </p>
      *
      * @param email    소셜 플랫폼에서 제공받은 이메일
@@ -105,15 +103,10 @@ public class UserService {
     public User createSocialUser(String email, String nickname) {
         log.info("소셜 계정 생성 시작 - 이메일: {}, 닉네임: {}", email, nickname);
 
-        // 닉네임 중복 시 자동 suffix 추가
-        String uniqueNickname = generateUniqueNickname(nickname);
-
-        if (!uniqueNickname.equals(nickname)) {
-            log.info("닉네임 중복으로 자동 변경 - 원본: {}, 변경: {}", nickname, uniqueNickname);
-        }
+        // 닉네임 중복 처리 로직 제거 (중복 허용)
 
         // 소셜 사용자 생성 (이메일 인증 완료 상태)
-        User user = User.createSocialUser(email, uniqueNickname);
+        User user = User.createSocialUser(email, nickname);
         User savedUser = userRepository.save(user);
 
         log.info("소셜 계정 생성 완료 - 사용자 ID: {}, 이메일: {}, 닉네임: {}",
@@ -189,6 +182,63 @@ public class UserService {
      */
     public Optional<User> findUserForTokenValidation(Long userId, String email) {
         return userRepository.findByIdAndEmailAndActive(userId, email);
+    }
+
+    /**
+     * 사용자 ID로 완전한 User 엔티티 조회
+     *
+     * <p>
+     * OAuth2 소셜 로그인 시 LazyInitializationException 방지를 위해 사용됩니다.
+     * Hibernate 프록시가 아닌 실제 엔티티를 반환하여 트랜잭션 밖에서도
+     * 안전하게 필드에 접근할 수 있습니다. 조회 시 모든 필드를 강제 초기화하여
+     * 'no session' 에러를 방지합니다.
+     * </p>
+     *
+     * @param userId 조회할 사용자 ID
+     * @return 완전히 초기화된 User 엔티티
+     * @throws IllegalArgumentException 사용자를 찾을 수 없는 경우
+     */
+    @Transactional(readOnly = true)
+    public User getById(Long userId) {
+        log.debug("User 엔티티 조회 시작 - 사용자 ID: {}", userId);
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + userId));
+
+        // Hibernate 프록시 강제 초기화
+        // OAuth2 핸들러에서 isOnboardingCompleted() 등의 필드 접근 시 안전성 보장
+        boolean initialized = user.isOnboardingCompleted();
+
+        log.debug("User 엔티티 초기화 완료 - 사용자 ID: {}, 온보딩 완료: {}", userId, initialized);
+        return user;
+    }
+
+    /**
+     * 이메일 인증 완료 처리
+     *
+     * <p>
+     * 사용자의 이메일 인증을 완료하고 인증 시간을 기록합니다.
+     * 보안을 위해 사용자 ID와 이메일이 모두 일치하는지 확인합니다.
+     * </p>
+     *
+     * @param userId 사용자 ID
+     * @param email  인증할 이메일 주소
+     * @throws IllegalArgumentException 사용자를 찾을 수 없거나 이메일이 일치하지 않는 경우
+     */
+    @Transactional
+    public void markEmailVerified(Long userId, String email) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
+
+        if (!email.equals(user.getEmail())) {
+            throw new IllegalArgumentException("이메일이 일치하지 않습니다.");
+        }
+
+        user.setEmailVerified(true);
+        user.setEmailVerifiedAt(LocalDateTime.now());
+        userRepository.save(user);
+
+        log.info("이메일 인증 완료 처리 - 사용자 ID: {}, 이메일: {}", userId, email);
     }
 
     /**
@@ -283,13 +333,12 @@ public class UserService {
      *
      * <p>
      * 닉네임, 캘린더 설정, 알림 설정 등 사용자가 변경 가능한 프로필 정보를 수정합니다.
-     * 닉네임 변경 시 중복 체크를 수행합니다.
+     * 닉네임 중복은 허용됩니다.
      * </p>
      *
      * @param userId      수정할 사용자 ID
      * @param newNickname 새로운 닉네임 (null인 경우 변경하지 않음)
      * @return 프로필 수정 성공 여부
-     * @throws IllegalArgumentException 닉네임이 이미 존재하는 경우
      */
     @Transactional
     public boolean updateUserProfile(Long userId, String newNickname) {
@@ -303,12 +352,8 @@ public class UserService {
 
         User user = userOpt.get();
 
-        // 닉네임 변경
+        // 닉네임 변경 (중복 체크 제거)
         if (newNickname != null && !newNickname.equals(user.getNickname())) {
-            if (userRepository.existsByNickname(newNickname)) {
-                log.warn("닉네임 수정 실패 - 중복된 닉네임: {}", newNickname);
-                throw new IllegalArgumentException("이미 사용 중인 닉네임입니다: " + newNickname);
-            }
             user.changeNickname(newNickname);
             log.info("닉네임 변경 - 사용자 ID: {}, 기존: {}, 신규: {}",
                     userId, user.getNickname(), newNickname);
