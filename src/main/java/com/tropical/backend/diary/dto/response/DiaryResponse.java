@@ -5,7 +5,6 @@ import lombok.Builder;
 import lombok.Data;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 
 /**
  * 일기 응답 DTO
@@ -25,10 +24,4 @@ public class DiaryResponse {
 
     @JsonFormat(pattern = "yyyy-MM-dd")
     private LocalDate diaryDate;
-
-    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
-    private LocalDateTime createdAt;
-
-    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
-    private LocalDateTime updatedAt;
 }

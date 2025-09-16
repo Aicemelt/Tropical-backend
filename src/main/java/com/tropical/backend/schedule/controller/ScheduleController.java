@@ -136,8 +136,6 @@ public class ScheduleController {
                 .location(schedule.getLocation())
                 .attendees(schedule.getAttendees())
                 .isCompleted(schedule.getIsCompleted())
-                .createdAt(schedule.getCreatedAt())
-                .updatedAt(schedule.getUpdatedAt())
                 .build();
     }
 }

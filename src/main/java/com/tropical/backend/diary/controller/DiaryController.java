@@ -112,8 +112,6 @@ public class DiaryController {
                 .emotion(diary.getEmotion())
                 .weather(diary.getWeather())
                 .diaryDate(diary.getDiaryDate())
-                .createdAt(diary.getCreatedAt())
-                .updatedAt(diary.getUpdatedAt())
                 .build();
     }
 }
