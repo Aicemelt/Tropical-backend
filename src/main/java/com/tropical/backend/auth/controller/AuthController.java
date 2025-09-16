@@ -266,6 +266,7 @@ public class AuthController {
      * 이메일로 발송된 인증 링크를 통해 이메일 인증을 완료합니다.
      * 토큰을 검증한 후 사용자의 emailVerified 플래그를 true로 설정하고
      * 인증 완료 시간을 기록합니다.
+     * 인증 상태에 따라 다른 페이지로 리다이렉트합니다.
      * </p>
      *
      * @param token    이메일 인증 토큰
@@ -289,10 +290,15 @@ public class AuthController {
             String email = claims.get("email", String.class);
 
             // 이메일 인증 처리
-            userService.markEmailVerified(userId, email);
+            boolean wasActuallyVerified = userService.markEmailVerified(userId, email);
 
-            log.info("이메일 인증 완료 - 사용자 ID: {}, 이메일: {}", userId, email);
-            response.sendRedirect(frontendBaseUrl + "/verified");
+            if (wasActuallyVerified) {
+                log.info("이메일 인증 완료 - 사용자 ID: {}, 이메일: {}", userId, email);
+                response.sendRedirect(frontendBaseUrl + "/verified?status=success");
+            } else {
+                // 이미 인증된 경우
+                response.sendRedirect(frontendBaseUrl + "/verified?status=already");
+            }
 
         } catch (Exception e) {
             log.warn("이메일 인증 실패 - 토큰: {}, 사유: {}", token, e.getMessage());

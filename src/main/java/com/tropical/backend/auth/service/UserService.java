@@ -228,10 +228,11 @@ public class UserService {
      *
      * @param userId 사용자 ID
      * @param email  인증할 이메일 주소
+     * @return 실제 인증 처리가 이루어졌는지 여부 (이미 인증된 경우 false)
      * @throws IllegalArgumentException 사용자를 찾을 수 없거나 이메일이 일치하지 않는 경우
      */
     @Transactional
-    public void markEmailVerified(Long userId, String email) {
+    public boolean markEmailVerified(Long userId, String email) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
 
@@ -239,11 +240,18 @@ public class UserService {
             throw new IllegalArgumentException("이메일이 일치하지 않습니다.");
         }
 
+        // 이미 인증된 경우 중복 처리 방지
+        if (user.isEmailVerified()) {
+            log.info("이미 인증 완료된 이메일 - 중복 요청 처리: 사용자 ID {}, 이메일: {}", userId, email);
+            return false; // 실제 인증 처리가 이루어지지 않음을 표시
+        }
+
         user.setEmailVerified(true);
         user.setEmailVerifiedAt(LocalDateTime.now());
         userRepository.save(user);
 
         log.info("이메일 인증 완료 처리 - 사용자 ID: {}, 이메일: {}", userId, email);
+        return true; // 실제 인증 처리가 이루어짐을 표시
     }
 
     /**
