@@ -150,6 +150,15 @@ cors:
   allow-credentials: true  # 쿠키 및 인증 헤더 허용
 
 # ===============================
+# 공휴일 API 설정 (한국천문연구원)
+# ===============================
+holiday:
+  api-base: https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService
+  api-key: ${HOLIDAY_API_KEY}
+  connect-timeout-ms: 3000
+  read-timeout-ms: 4000
+
+# ===============================
 # 로깅 설정
 # ===============================
 logging:
