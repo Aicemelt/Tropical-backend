@@ -48,7 +48,6 @@ public class UserService {
     private final SocialAccountRepository socialAccountRepository;
     private final PasswordEncoder passwordEncoder;
 
-
     /**
      * 로컬 계정 사용자 생성
      *
@@ -69,9 +68,15 @@ public class UserService {
         log.info("로컬 계정 생성 시작 - 이메일: {}, 닉네임: {}", email, nickname);
 
         // 이메일 중복 체크 (활성 계정만)
-        if (userRepository.existsByEmailAndActive(email)) {
-            log.warn("이메일 중복 - 이미 존재하는 이메일: {}", email);
-            throw new IllegalArgumentException("이미 사용 중인 이메일입니다: " + email);
+        // if (userRepository.existsByEmailAndActive(email)) {
+        //     log.warn("이메일 중복 - 이미 존재하는 이메일: {}", email);
+        //     throw new IllegalArgumentException("이미 사용 중인 이메일입니다: " + email);
+        // }
+
+        // 이메일 중복 체크 (활성화 된 로컬 계정만)
+        if (userRepository.existsByEmailAndActiveAndLocal(email)) {
+            log.warn("로컬 계정 이메일 중복 - 이미 존재하는 로컬 이메일: {}", email);
+            throw new IllegalArgumentException("이미 사용 중인 로컬 계정 이메일입니다: " + email);
         }
 
         // 닉네임 중복 체크 제거 (중복 허용)
@@ -246,7 +251,7 @@ public class UserService {
      *
      * <p>
      * 로컬 계정의 이메일 인증을 완료 처리합니다.
-     * 이메일 인증 토큰 검증 후 호출되어야 합니다.
+     * 이미 인증된 계정에 대한 중복 요청도 적절히 처리합니다.
      * </p>
      *
      * @param email 인증할 이메일
@@ -256,6 +261,13 @@ public class UserService {
     public boolean verifyUserEmail(String email) {
         log.info("이메일 인증 처리 시작 - 이메일: {}", email);
 
+        // 이미 인증된 사용자 체크
+        if (userRepository.existsByEmailAndVerified(email)) {
+            log.info("이미 인증 완료된 이메일 - 중복 요청 처리: {}", email);
+            return true; // 이미 인증되었으므로 성공으로 처리
+        }
+
+        // 인증 대기 중인 사용자 처리
         Optional<User> userOpt = userRepository.findByEmailAndUnverified(email);
         if (userOpt.isPresent()) {
             User user = userOpt.get();
@@ -266,7 +278,7 @@ public class UserService {
             return true;
         }
 
-        log.warn("이메일 인증 실패 - 인증 대상 사용자 없음: {}", email);
+        log.warn("이메일 인증 실패 - 존재하지 않는 이메일: {}", email);
         return false;
     }
 
