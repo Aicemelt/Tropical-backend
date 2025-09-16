@@ -23,7 +23,7 @@ import java.util.Map;
  * Security 필터에서 처리되지 않는 Controller 단의 예외들을 담당합니다.
  * </p>
  *
- * @author 왕택준
+ * @author 왕택준, 신동준
  * @version 0.1
  * @since 2025.09.14
  */
@@ -137,15 +137,79 @@ public class GlobalExceptionHandler {
             throw ex; // 다시 던져서 위의 핸들러가 처리하도록
         }
 
+        String path = getPath(request);
+        String errorMessage = "서버 내부 오류가 발생했습니다";
+        String errorCode = "INTERNAL_SERVER_ERROR";
+        HttpStatus status = HttpStatus.INTERNAL_SERVER_ERROR;
+
+        // 일정/일기 관련 비즈니스 로직 예외 처리
+        if (ex.getMessage() != null) {
+            String message = ex.getMessage();
+
+            // 일기 중복 날짜 오류
+            if (message.contains("해당 날짜에 이미 일기가 존재합니다")) {
+                errorMessage = message;
+                errorCode = "DIARY_DATE_DUPLICATE";
+                status = HttpStatus.CONFLICT; // 409 Conflict
+                log.warn("일기 중복 날짜 - Path: {}, Message: {}", path, message);
+            }
+            // 일정/일기 조회 실패
+            else if (message.contains("일정을 찾을 수 없습니다") || message.contains("일기를 찾을 수 없습니다")) {
+                errorMessage = message;
+                errorCode = "RESOURCE_NOT_FOUND";
+                status = HttpStatus.NOT_FOUND; // 404 Not Found
+                log.warn("리소스 조회 실패 - Path: {}, Message: {}", path, message);
+            }
+            // 사용자 조회 실패
+            else if (message.contains("사용자를 찾을 수 없습니다")) {
+                errorMessage = message;
+                errorCode = "USER_NOT_FOUND";
+                status = HttpStatus.NOT_FOUND; // 404 Not Found
+                log.warn("사용자 조회 실패 - Path: {}, Message: {}", path, message);
+            }
+            // 기타 RuntimeException
+            else {
+                log.error("서버 에러 - Path: {}, Message: {}", path, ex.getMessage(), ex);
+            }
+        } else {
+            log.error("서버 에러 - Path: {}, Message: {}", path, ex.getMessage(), ex);
+        }
+
         ApiErrorResponse errorResponse = ApiErrorResponse.builder()
-                .message("서버 내부 오류가 발생했습니다")
-                .errorCode("INTERNAL_SERVER_ERROR")
+                .message(errorMessage)
+                .errorCode(errorCode)
                 .timestamp(LocalDateTime.now())
-                .path(getPath(request))
+                .path(path)
                 .build();
 
-        log.error("서버 에러 - Path: {}, Message: {}", getPath(request), ex.getMessage(), ex);
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        return ResponseEntity.status(status).body(errorResponse);
+    }
+
+    /**
+     * UnsupportedOperationException 처리 (501 Not Implemented)
+     *
+     * 일정/일기 서비스에서 사용되지 않는 레거시 메서드 호출 시 발생
+     *
+     * @param ex      지원하지 않는 연산 예외
+     * @param request 웹 요청 정보
+     * @return 지원하지 않는 기능 에러 응답
+     */
+    @ExceptionHandler(UnsupportedOperationException.class)
+    public ResponseEntity<ApiErrorResponse> handleUnsupportedOperationException(
+            UnsupportedOperationException ex, WebRequest request) {
+
+        String path = getPath(request);
+        String errorMessage = ex.getMessage() != null ? ex.getMessage() : "지원하지 않는 기능입니다";
+
+        ApiErrorResponse errorResponse = ApiErrorResponse.builder()
+                .message(errorMessage)
+                .errorCode("NOT_IMPLEMENTED")
+                .timestamp(LocalDateTime.now())
+                .path(path)
+                .build();
+
+        log.warn("지원하지 않는 기능 호출 - Path: {}, Message: {}", path, ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED).body(errorResponse);
     }
 
     /**

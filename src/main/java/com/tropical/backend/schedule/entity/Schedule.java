@@ -1,5 +1,6 @@
 package com.tropical.backend.schedule.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.tropical.backend.auth.entity.User;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
@@ -23,32 +24,19 @@ import java.time.LocalTime;
  * 월별 캘린더 뷰와 일정 관리 기능의 기반이 됩니다.
  * </p>
  *
- * <p>주요 기능:</p>
- * <ul>
- *   <li>일정 기본 정보 관리 (제목, 메모, 날짜, 시간)</li>
- *   <li>일정 완료 상태 추적 및 토글</li>
- *   <li>참석자 및 장소 정보 저장</li>
- *   <li>사용자별 일정 분리 관리</li>
- *   <li>월별/날짜별 일정 조회 최적화</li>
- *   <li>일정 생성/수정 시간 자동 추적</li>
- * </ul>
- *
+
  * @author 신동준
  * @version 0.1
  * @since 2025.09.14
  */
 @Entity
-@Table(name = "schedule", indexes = {
-    @Index(name = "idx_schedule_user_date", columnList = "user_id, schedule_date"),
-    @Index(name = "idx_schedule_date", columnList = "schedule_date"),
-    @Index(name = "idx_schedule_completed", columnList = "is_completed")
-})
+@Table(name = "schedule")
 @EntityListeners(AuditingEntityListener.class)
 @Getter
 @ToString(exclude = {"user"})
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
+@Builder(toBuilder = true)
 public class Schedule {
 
     /**
@@ -58,28 +46,43 @@ public class Schedule {
      */
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "schedule_id")
-    private Long scheduleId;
+    @Column(name = "id")
+    private Long id;
+
+    /**
+     * 일정 소유자
+     *
+     * <p>이 일정을 생성한 사용자와의 연관관계를 나타냅니다.
+     * 지연 로딩(LAZY)을 사용하여 성능을 최적화하고,
+     * 사용자별 일정 분리를 통해 데이터 보안을 보장합니다.</p>
+     */
+    @JsonIgnore
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    @NotNull(message = "사용자는 필수입니다")
+    private User user;
 
     /**
      * 일정 제목
      *
      * <p>필수 입력 항목으로, 사용자가 일정을 쉽게 식별할 수 있는 제목입니다.
-     * 최대 255자까지 입력 가능하며, 빈 값이나 공백만으로는 저장할 수 없습니다.</p>
+     * 최대 100자까지 입력 가능하며, 빈 값이나 공백만으로는 저장할 수 없습니다.</p>
      */
     @NotBlank
-    @Size(max = 255)
-    @Column(nullable = false)
+    @Size(max = 200)
+    @Column(name = "title", nullable = false, length = 200)
     private String title;
 
     /**
      * 일정 상세 메모
      *
      * <p>일정에 대한 상세한 설명이나 추가 정보를 저장하는 선택적 필드입니다.
-     * TEXT 타입으로 긴 내용도 저장 가능합니다.</p>
+
+     * 최대 1000자까지 입력 가능하며, 긴 내용도 저장 가능합니다.</p>
      */
     @Lob
-    @Column(columnDefinition = "TEXT")
+    @Size(max = 1000)
+    @Column(name = "memo", columnDefinition = "TEXT")
     private String memo;
 
     /**
@@ -114,19 +117,20 @@ public class Schedule {
      * 일정 장소
      *
      * <p>일정이 진행될 장소나 위치 정보를 저장하는 선택적 필드입니다.
-     * 최대 100자까지 입력 가능합니다.</p>
+
+     * 최대 200자까지 입력 가능하며, 구체적인 장소 정보를 제공합니다.</p>
      */
-    @Size(max = 100)
-    @Column(length = 100)
+    @Size(max = 255)
+    @Column(name = "location", length = 255)
     private String location;
 
     /**
      * 참석자 정보
      *
      * <p>일정에 참석하는 사람들의 정보를 저장하는 선택적 필드입니다.
-     * 최대 255자까지 입력 가능하며, 여러 참석자는 구분자로 나누어 저장됩니다.</p>
+     * 최대 500자까지 입력 가능하며, 여러 참석자는 구분자로 나누어 저장됩니다.</p>
      */
-    @Size(max = 255)
+    @Column(name = "attendees", columnDefinition = "TEXT")
     private String attendees;
 
     /**
@@ -146,7 +150,7 @@ public class Schedule {
      * JPA Auditing 기능을 통해 엔티티 생성 시 자동 설정됩니다.</p>
      */
     @CreatedDate
-    @Column(name = "created_at", nullable = false)
+    @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     /**
@@ -158,15 +162,4 @@ public class Schedule {
     @LastModifiedDate
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
-
-    /**
-     * 일정 소유자
-     *
-     * <p>이 일정을 생성한 사용자와의 연관관계를 나타냅니다.
-     * 지연 로딩(LAZY)을 사용하여 성능을 최적화하고,
-     * 사용자별 일정 분리를 통해 데이터 보안을 보장합니다.</p>
-     */
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
-    private User user;
 }
