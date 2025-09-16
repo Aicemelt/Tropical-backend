@@ -26,8 +26,8 @@ import java.util.stream.Collectors;
  * </p>
  *
  * @author 백승현
- * @version 1.0
- * @since 2025.09.14
+ * @version 1.2
+ * @since 2025.09.16
  */
 @Service
 @RequiredArgsConstructor
@@ -74,6 +74,40 @@ public class BucketListService {
         List<BucketList> bucketLists = bucketListRepository.findByUserOrderByCreatedAtDesc(user);
 
         return bucketLists.stream()
+                .map(BucketListResponse::from)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 사용자의 완료된 버킷리스트 조회
+     *
+     * @param user 사용자 정보
+     * @return 완료된 버킷리스트 목록
+     */
+    public List<BucketListResponse> getCompletedBucketLists(User user) {
+        log.info("Fetching completed bucket lists for user: {}", user.getId());
+
+        List<BucketList> completedBucketLists = bucketListRepository
+                .findByUserAndIsCompletedOrderByCreatedAtDesc(user, true);
+
+        return completedBucketLists.stream()
+                .map(BucketListResponse::from)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 사용자의 미완료된 버킷리스트 조회
+     *
+     * @param user 사용자 정보
+     * @return 미완료된 버킷리스트 목록
+     */
+    public List<BucketListResponse> getIncompleteBucketLists(User user) {
+        log.info("Fetching incomplete bucket lists for user: {}", user.getId());
+
+        List<BucketList> incompleteBucketLists = bucketListRepository
+                .findByUserAndIsCompletedOrderByCreatedAtDesc(user, false);
+
+        return incompleteBucketLists.stream()
                 .map(BucketListResponse::from)
                 .collect(Collectors.toList());
     }
@@ -156,39 +190,39 @@ public class BucketListService {
     }
 
     /**
-     * 버킷리스트 완료 상태 토글
+     * 버킷리스트 완료 상태 변경 (명시적 값 설정)
      *
      * @param user 사용자 정보
-     * @param bucketId 토글할 버킷리스트 ID
+     * @param bucketId 처리할 버킷리스트 ID
+     * @param request 완료 처리 요청 데이터
      * @return 수정된 버킷리스트 응답 정보
      * @throws NoSuchElementException 버킷리스트를 찾을 수 없는 경우
      * @throws SecurityException 접근 권한이 없는 경우
      */
     @Transactional
-    public BucketListResponse toggleBucketListCompletion(User user, Long bucketId) {
-        log.info("Toggling completion status for bucket list: {} for user: {}", bucketId, user.getId());
+    public BucketListResponse completeBucketList(User user, Long bucketId, BucketListCompleteRequest request) {
+        log.info("Setting completion status for bucket list: {} for user: {} to {}",
+                bucketId, user.getId(), request.getIsCompleted());
 
         BucketList bucketList = bucketListRepository.findById(bucketId)
                 .orElseThrow(() -> new NoSuchElementException("버킷리스트를 찾을 수 없습니다."));
 
         validateBucketListOwnership(bucketList, user);
 
-        // 현재 상태의 반대로 변경
-        Boolean newCompletionStatus = !bucketList.getIsCompleted();
-
-        // 완료 상태 업데이트
+        // 명시적으로 전달받은 완료 상태로 설정
         BucketList updatedBucketList = BucketList.builder()
                 .bucketId(bucketList.getBucketId())
                 .user(bucketList.getUser())
                 .content(bucketList.getContent())
-                .isCompleted(newCompletionStatus)
+                .isCompleted(request.getIsCompleted())
                 .createdAt(bucketList.getCreatedAt())
                 .updatedAt(LocalDateTime.now())
                 .build();
 
         BucketList savedBucketList = bucketListRepository.save(updatedBucketList);
 
-        log.info("Successfully toggled completion status for bucket list: {} to {}", bucketId, newCompletionStatus);
+        log.info("Successfully set completion status for bucket list: {} to {}",
+                bucketId, request.getIsCompleted());
         return BucketListResponse.from(savedBucketList);
     }
 
