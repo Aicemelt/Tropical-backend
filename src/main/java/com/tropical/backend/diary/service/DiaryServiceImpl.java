@@ -1,5 +1,7 @@
 package com.tropical.backend.diary.service;
 
+import com.tropical.backend.auth.entity.User;
+import com.tropical.backend.auth.service.UserService;
 import com.tropical.backend.diary.entity.Diary;
 import com.tropical.backend.diary.repository.DiaryRepository;
 import lombok.RequiredArgsConstructor;
@@ -15,11 +17,6 @@ import java.util.Optional;
 /**
  * 일기 관리 서비스 구현체
  *
- * <p>
- * DiaryService 인터페이스의 구현체로, 일기에 대한 비즈니스 로직을 처리합니다.
- * CRUD 기본 기능과 날짜별 조회, 감정/날씨별 조회 등의 기능을 제공합니다.
- * </p>
- *
  * @author 신동준
  * @version 0.1
  * @since 2025.09.15
@@ -31,133 +28,72 @@ import java.util.Optional;
 public class DiaryServiceImpl implements DiaryService {
 
     private final DiaryRepository diaryRepository;
+    private final UserService userService;
 
     /**
-     * 새로운 일기를 생성합니다
+     * User ID와 함께 새로운 일기를 생성합니다
      */
     @Override
     @Transactional
-    public Diary createDiary(Diary diary) {
+    public Diary createDiaryWithUserId(Long userId, Diary diary) {
         log.info("일기 생성 요청: 사용자 ID = {}, 제목 = {}, 날짜 = {}",
-                diary.getUser().getId(), diary.getTitle(), diary.getDiaryDate());
+                userId, diary.getTitle(), diary.getDiaryDate());
+
+        // User 엔티티 조회 (기존 UserService 메서드 사용)
+        User user = userService.findActiveUserById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + userId));
 
         // 중복 날짜 검증
-        boolean exists = diaryRepository.existsByUser_IdAndDiaryDate(
-                diary.getUser().getId(), diary.getDiaryDate());
-
+        boolean exists = diaryRepository.existsByUser_IdAndDiaryDate(userId, diary.getDiaryDate());
         if (exists) {
             log.warn("해당 날짜에 이미 일기가 존재합니다: 사용자 ID = {}, 날짜 = {}",
-                    diary.getUser().getId(), diary.getDiaryDate());
+                    userId, diary.getDiaryDate());
             throw new RuntimeException("해당 날짜에 이미 일기가 존재합니다: " + diary.getDiaryDate());
         }
 
-        Diary savedDiary = diaryRepository.save(diary);
+        // Diary에 User 설정
+        Diary diaryWithUser = diary.toBuilder()
+                .user(user)
+                .build();
+
+        Diary savedDiary = diaryRepository.save(diaryWithUser);
 
         log.info("일기 생성 완료: ID = {}", savedDiary.getId());
         return savedDiary;
     }
 
     /**
-     * ID로 일기를 조회합니다
+     * 일기 ID와 사용자 ID로 일기를 조회합니다 (권한 검증 포함)
      */
     @Override
-    public Diary getDiaryById(Long diaryId) {
-        log.info("일기 조회 요청: ID = {}", diaryId);
+    public Diary getDiaryByIdAndUserId(Long diaryId, Long userId) {
+        log.info("일기 조회 요청: 일기 ID = {}, 사용자 ID = {}", diaryId, userId);
 
-        return diaryRepository.findById(diaryId)
+        Diary diary = diaryRepository.findById(diaryId)
                 .orElseThrow(() -> {
                     log.error("일기를 찾을 수 없습니다: ID = {}", diaryId);
                     return new RuntimeException("일기를 찾을 수 없습니다: " + diaryId);
                 });
-    }
 
-    /**
-     * 사용자의 모든 일기를 조회합니다
-     */
-    @Override
-    public List<Diary> getDiariesByUserId(Long userId) {
-        log.info("사용자 일기 조회 요청: 사용자 ID = {}", userId);
-
-        List<Diary> diaries = diaryRepository.findByUser_IdOrderByDiaryDateDesc(userId);
-
-        log.info("사용자 일기 조회 완료: 사용자 ID = {}, 일기 수 = {}", userId, diaries.size());
-        return diaries;
-    }
-
-    /**
-     * 특정 날짜의 일기를 조회합니다
-     */
-    @Override
-    public Optional<Diary> getDiaryByDate(Long userId, LocalDate date) {
-        log.info("날짜별 일기 조회 요청: 사용자 ID = {}, 날짜 = {}", userId, date);
-
-        Optional<Diary> diary = diaryRepository.findByUser_IdAndDiaryDate(userId, date);
-
-        if (diary.isPresent()) {
-            log.info("날짜별 일기 조회 완료: 사용자 ID = {}, 날짜 = {}, 일기 ID = {}",
-                    userId, date, diary.get().getId());
-        } else {
-            log.info("해당 날짜에 일기가 존재하지 않음: 사용자 ID = {}, 날짜 = {}", userId, date);
+        // 사용자 권한 검증
+        if (!diary.getUser().getId().equals(userId)) {
+            log.warn("일기 조회 권한 없음: 일기 ID = {}, 요청 사용자 ID = {}, 소유자 ID = {}",
+                    diaryId, userId, diary.getUser().getId());
+            throw new IllegalArgumentException("해당 일기에 접근할 권한이 없습니다");
         }
 
         return diary;
     }
 
     /**
-     * 월별 일기를 조회합니다
-     */
-    @Override
-    public List<Diary> getDiariesByMonth(Long userId, int year, int month) {
-        log.info("월별 일기 조회 요청: 사용자 ID = {}, 연도 = {}, 월 = {}", userId, year, month);
-
-        YearMonth yearMonth = YearMonth.of(year, month);
-        LocalDate startDate = yearMonth.atDay(1);
-        LocalDate endDate = yearMonth.atEndOfMonth();
-
-        List<Diary> diaries = diaryRepository.findByUserIdAndDiaryDateBetween(userId, startDate, endDate);
-
-        log.info("월별 일기 조회 완료: 사용자 ID = {}, {}-{}, 일기 수 = {}",
-                userId, year, month, diaries.size());
-        return diaries;
-    }
-
-    /**
-     * 감정별 일기를 조회합니다
-     */
-    @Override
-    public List<Diary> getDiariesByEmotion(Long userId, String emotion) {
-        log.info("감정별 일기 조회 요청: 사용자 ID = {}, 감정 = {}", userId, emotion);
-
-        List<Diary> diaries = diaryRepository.findByUser_IdAndEmotionOrderByDiaryDateDesc(userId, emotion);
-
-        log.info("감정별 일기 조회 완료: 사용자 ID = {}, 감정 = {}, 일기 수 = {}",
-                userId, emotion, diaries.size());
-        return diaries;
-    }
-
-    /**
-     * 날씨별 일기를 조회합니다
-     */
-    @Override
-    public List<Diary> getDiariesByWeather(Long userId, String weather) {
-        log.info("날씨별 일기 조회 요청: 사용자 ID = {}, 날씨 = {}", userId, weather);
-
-        List<Diary> diaries = diaryRepository.findByUser_IdAndWeatherOrderByDiaryDateDesc(userId, weather);
-
-        log.info("날씨별 일기 조회 완료: 사용자 ID = {}, 날씨 = {}, 일기 수 = {}",
-                userId, weather, diaries.size());
-        return diaries;
-    }
-
-    /**
-     * 일기 정보를 수정합니다
+     * 사용자 권한을 검증하여 일기를 수정합니다
      */
     @Override
     @Transactional
-    public Diary updateDiary(Long diaryId, Diary diary) {
-        log.info("일기 수정 요청: ID = {}", diaryId);
+    public Diary updateDiaryByUserId(Long diaryId, Long userId, Diary diary) {
+        log.info("일기 수정 요청: 일기 ID = {}, 사용자 ID = {}", diaryId, userId);
 
-        Diary existingDiary = getDiaryById(diaryId);
+        Diary existingDiary = getDiaryByIdAndUserId(diaryId, userId);
 
         // 기존 일기 업데이트 (Builder 패턴 사용)
         Diary.DiaryBuilder updatedBuilder = existingDiary.toBuilder();
@@ -171,11 +107,10 @@ public class DiaryServiceImpl implements DiaryService {
         if (diary.getDiaryDate() != null) {
             // 날짜 변경 시 중복 확인
             if (!existingDiary.getDiaryDate().equals(diary.getDiaryDate())) {
-                boolean exists = diaryRepository.existsByUser_IdAndDiaryDate(
-                        existingDiary.getUser().getId(), diary.getDiaryDate());
+                boolean exists = diaryRepository.existsByUser_IdAndDiaryDate(userId, diary.getDiaryDate());
                 if (exists) {
                     log.warn("변경하려는 날짜에 이미 일기가 존재합니다: 사용자 ID = {}, 날짜 = {}",
-                            existingDiary.getUser().getId(), diary.getDiaryDate());
+                            userId, diary.getDiaryDate());
                     throw new RuntimeException("해당 날짜에 이미 일기가 존재합니다: " + diary.getDiaryDate());
                 }
             }
@@ -196,30 +131,99 @@ public class DiaryServiceImpl implements DiaryService {
     }
 
     /**
-     * 일기를 삭제합니다
+     * 사용자 권한을 검증하여 일기를 삭제합니다
      */
     @Override
     @Transactional
-    public void deleteDiary(Long diaryId) {
-        log.info("일기 삭제 요청: ID = {}", diaryId);
+    public void deleteDiaryByUserId(Long diaryId, Long userId) {
+        log.info("일기 삭제 요청: 일기 ID = {}, 사용자 ID = {}", diaryId, userId);
 
-        Diary diary = getDiaryById(diaryId);
+        Diary diary = getDiaryByIdAndUserId(diaryId, userId);
         diaryRepository.delete(diary);
 
         log.info("일기 삭제 완료: ID = {}", diaryId);
     }
 
-    /**
-     * 특정 날짜에 일기가 존재하는지 확인합니다
-     */
+    // === 조회용 메서드들 ===
+
+    @Override
+    public List<Diary> getDiariesByUserId(Long userId) {
+        log.info("사용자 일기 조회 요청: 사용자 ID = {}", userId);
+        List<Diary> diaries = diaryRepository.findByUser_IdOrderByDiaryDateDesc(userId);
+        log.info("사용자 일기 조회 완료: 사용자 ID = {}, 일기 수 = {}", userId, diaries.size());
+        return diaries;
+    }
+
+    @Override
+    public Optional<Diary> getDiaryByDate(Long userId, LocalDate date) {
+        log.info("날짜별 일기 조회 요청: 사용자 ID = {}, 날짜 = {}", userId, date);
+        Optional<Diary> diary = diaryRepository.findByUser_IdAndDiaryDate(userId, date);
+        if (diary.isPresent()) {
+            log.info("날짜별 일기 조회 완료: 사용자 ID = {}, 날짜 = {}, 일기 ID = {}",
+                    userId, date, diary.get().getId());
+        } else {
+            log.info("해당 날짜에 일기가 존재하지 않음: 사용자 ID = {}, 날짜 = {}", userId, date);
+        }
+        return diary;
+    }
+
+    @Override
+    public List<Diary> getDiariesByMonth(Long userId, int year, int month) {
+        log.info("월별 일기 조회 요청: 사용자 ID = {}, 연도 = {}, 월 = {}", userId, year, month);
+        YearMonth yearMonth = YearMonth.of(year, month);
+        LocalDate startDate = yearMonth.atDay(1);
+        LocalDate endDate = yearMonth.atEndOfMonth();
+        List<Diary> diaries = diaryRepository.findByUserIdAndDiaryDateBetween(userId, startDate, endDate);
+        log.info("월별 일기 조회 완료: 사용자 ID = {}, {}-{}, 일기 수 = {}", userId, year, month, diaries.size());
+        return diaries;
+    }
+
+    @Override
+    public List<Diary> getDiariesByEmotion(Long userId, String emotion) {
+        log.info("감정별 일기 조회 요청: 사용자 ID = {}, 감정 = {}", userId, emotion);
+        List<Diary> diaries = diaryRepository.findByUser_IdAndEmotionOrderByDiaryDateDesc(userId, emotion);
+        log.info("감정별 일기 조회 완료: 사용자 ID = {}, 감정 = {}, 일기 수 = {}", userId, emotion, diaries.size());
+        return diaries;
+    }
+
+    @Override
+    public List<Diary> getDiariesByWeather(Long userId, String weather) {
+        log.info("날씨별 일기 조회 요청: 사용자 ID = {}, 날씨 = {}", userId, weather);
+        List<Diary> diaries = diaryRepository.findByUser_IdAndWeatherOrderByDiaryDateDesc(userId, weather);
+        log.info("날씨별 일기 조회 완료: 사용자 ID = {}, 날씨 = {}, 일기 수 = {}", userId, weather, diaries.size());
+        return diaries;
+    }
+
     @Override
     public boolean existsByDate(Long userId, LocalDate date) {
         log.info("일기 존재 확인 요청: 사용자 ID = {}, 날짜 = {}", userId, date);
-
         boolean exists = diaryRepository.existsByUser_IdAndDiaryDate(userId, date);
-
-        log.info("일기 존재 확인 완료: 사용자 ID = {}, 날짜 = {}, 존재 여부 = {}",
-                userId, date, exists);
+        log.info("일기 존재 확인 완료: 사용자 ID = {}, 날짜 = {}, 존재 여부 = {}", userId, date, exists);
         return exists;
+    }
+
+    // === 기존 메서드들 (호환성 유지용 - 사용 안함) ===
+
+    @Override
+    @Transactional
+    public Diary createDiary(Diary diary) {
+        throw new UnsupportedOperationException("createDiaryWithUserId를 사용하세요");
+    }
+
+    @Override
+    public Diary getDiaryById(Long diaryId) {
+        throw new UnsupportedOperationException("getDiaryByIdAndUserId를 사용하세요");
+    }
+
+    @Override
+    @Transactional
+    public Diary updateDiary(Long diaryId, Diary diary) {
+        throw new UnsupportedOperationException("updateDiaryByUserId를 사용하세요");
+    }
+
+    @Override
+    @Transactional
+    public void deleteDiary(Long diaryId) {
+        throw new UnsupportedOperationException("deleteDiaryByUserId를 사용하세요");
     }
 }

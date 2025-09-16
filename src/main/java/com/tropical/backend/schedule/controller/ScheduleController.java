@@ -1,7 +1,5 @@
 package com.tropical.backend.schedule.controller;
 
-import com.tropical.backend.auth.entity.User;
-import com.tropical.backend.schedule.dto.request.ScheduleCompleteRequest;
 import com.tropical.backend.schedule.dto.request.ScheduleCreateRequest;
 import com.tropical.backend.schedule.dto.request.ScheduleUpdateRequest;
 import com.tropical.backend.schedule.dto.response.ScheduleResponse;
@@ -12,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -33,10 +32,18 @@ public class ScheduleController {
     @PostMapping
     public ResponseEntity<ScheduleResponse> createSchedule(
             @Valid @RequestBody ScheduleCreateRequest request,
-            @AuthenticationPrincipal User user) {
+            @AuthenticationPrincipal UserDetails userDetails) {
 
+        // 인증된 사용자 정보 검증
+        if (userDetails == null) {
+            throw new IllegalArgumentException("인증된 사용자 정보가 필요합니다");
+        }
+
+        // UserDetails에서 User ID 추출
+        Long userId = Long.valueOf(userDetails.getUsername());
+
+        // User ID를 가지고 Schedule 생성
         Schedule schedule = Schedule.builder()
-                .user(user)
                 .title(request.getTitle())
                 .memo(request.getMemo())
                 .scheduleDate(request.getScheduleDate())
@@ -46,7 +53,8 @@ public class ScheduleController {
                 .attendees(request.getAttendees())
                 .build();
 
-        Schedule savedSchedule = scheduleService.createSchedule(schedule);
+        // 서비스에서 User ID로 Schedule 생성
+        Schedule savedSchedule = scheduleService.createScheduleWithUserId(userId, schedule);
         ScheduleResponse response = convertToResponse(savedSchedule);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
@@ -58,12 +66,16 @@ public class ScheduleController {
     @GetMapping("/{scheduleId}")
     public ResponseEntity<ScheduleResponse> getSchedule(
             @PathVariable Long scheduleId,
-            @AuthenticationPrincipal User user) {
+            @AuthenticationPrincipal UserDetails userDetails) {
 
-        Schedule schedule = scheduleService.getScheduleById(scheduleId);
-        // TODO: 사용자 권한 검증 로직 추가 필요 (일정 소유자 확인)
+        if (userDetails == null) {
+            throw new IllegalArgumentException("인증된 사용자 정보가 필요합니다");
+        }
+
+        Long userId = Long.valueOf(userDetails.getUsername());
+        Schedule schedule = scheduleService.getScheduleByIdAndUserId(scheduleId, userId);
+
         ScheduleResponse response = convertToResponse(schedule);
-
         return ResponseEntity.ok(response);
     }
 
@@ -74,7 +86,13 @@ public class ScheduleController {
     public ResponseEntity<ScheduleResponse> updateSchedule(
             @PathVariable Long scheduleId,
             @Valid @RequestBody ScheduleUpdateRequest request,
-            @AuthenticationPrincipal User user) {
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        if (userDetails == null) {
+            throw new IllegalArgumentException("인증된 사용자 정보가 필요합니다");
+        }
+
+        Long userId = Long.valueOf(userDetails.getUsername());
 
         Schedule updateData = Schedule.builder()
                 .title(request.getTitle())
@@ -86,7 +104,7 @@ public class ScheduleController {
                 .attendees(request.getAttendees())
                 .build();
 
-        Schedule updatedSchedule = scheduleService.updateSchedule(scheduleId, updateData);
+        Schedule updatedSchedule = scheduleService.updateScheduleByUserId(scheduleId, userId, updateData);
         ScheduleResponse response = convertToResponse(updatedSchedule);
 
         return ResponseEntity.ok(response);
@@ -98,10 +116,14 @@ public class ScheduleController {
     @DeleteMapping("/{scheduleId}")
     public ResponseEntity<Void> deleteSchedule(
             @PathVariable Long scheduleId,
-            @AuthenticationPrincipal User user) {
+            @AuthenticationPrincipal UserDetails userDetails) {
 
-        // TODO: 사용자 권한 검증 로직 추가 필요 (일정 소유자 확인)
-        scheduleService.deleteSchedule(scheduleId);
+        if (userDetails == null) {
+            throw new IllegalArgumentException("인증된 사용자 정보가 필요합니다");
+        }
+
+        Long userId = Long.valueOf(userDetails.getUsername());
+        scheduleService.deleteScheduleByUserId(scheduleId, userId);
 
         return ResponseEntity.noContent().build();
     }
@@ -112,11 +134,14 @@ public class ScheduleController {
     @PutMapping("/{scheduleId}/complete")
     public ResponseEntity<ScheduleResponse> toggleScheduleComplete(
             @PathVariable Long scheduleId,
-            @Valid @RequestBody ScheduleCompleteRequest request,
-            @AuthenticationPrincipal User user) {
+            @AuthenticationPrincipal UserDetails userDetails) {
 
-        // TODO: 사용자 권한 검증 로직 추가 필요 (일정 소유자 확인)
-        Schedule updatedSchedule = scheduleService.toggleScheduleCompletion(scheduleId);
+        if (userDetails == null) {
+            throw new IllegalArgumentException("인증된 사용자 정보가 필요합니다");
+        }
+
+        Long userId = Long.valueOf(userDetails.getUsername());
+        Schedule updatedSchedule = scheduleService.toggleScheduleCompletionByUserId(scheduleId, userId);
         ScheduleResponse response = convertToResponse(updatedSchedule);
 
         return ResponseEntity.ok(response);
