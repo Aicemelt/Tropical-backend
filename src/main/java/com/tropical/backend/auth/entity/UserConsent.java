@@ -408,4 +408,20 @@ public class UserConsent {
         }
         return termsVersionSnapshot.equals(currentActiveTerms.getVersion());
     }
+
+    /**
+     * 생성 시각(동의 처리 시각) alias
+     *
+     * <p>
+     * JPA Auditing의 createdAt을 별도로 두지 않고, 현재 엔티티의 동의 처리 시각(agreedAt)을
+     * 정렬/최신 판단 용도로 사용할 수 있도록 별칭 게터를 제공합니다.
+     * 주의: {@link #updateAgreement(boolean, Terms)} 호출 시 agreedAt이 갱신되므로,
+     * 이 값은 "마지막 동의/변경 시각"을 의미합니다.
+     * </p>
+     *
+     * @return 동의(또는 최근 변경) 시각
+     */
+    public LocalDateTime getCreatedAt() {
+        return this.agreedAt;
+    }
 }
