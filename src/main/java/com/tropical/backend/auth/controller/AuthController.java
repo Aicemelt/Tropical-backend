@@ -57,7 +57,7 @@ import java.util.Map;
  * @since 2025.09.15
  */
 @RestController
-@RequestMapping("/api/auth")
+@RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "Authentication", description = "인증/회원가입 API")
@@ -142,7 +142,7 @@ public class AuthController {
 
             // 4) 이메일 인증 토큰 발급 및 발송
             String emailVerifyToken = jwtTokenProvider.createEmailVerifyToken(user.getId(), user.getEmail());
-            String verifyUrl = backendBaseUrl + "/api/auth/verify?token=" + emailVerifyToken;
+            String verifyUrl = backendBaseUrl + "/api/v1/auth/verify?token=" + emailVerifyToken;
             emailService.sendVerificationMail(user.getEmail(), verifyUrl);
 
             // 5) 응답: 로그인 토큰 없이 이메일 인증 단계로 이동
@@ -355,7 +355,7 @@ public class AuthController {
 
             // 인증 메일 재발송
             String emailVerifyToken = jwtTokenProvider.createEmailVerifyToken(user.getId(), user.getEmail());
-            String verifyUrl = backendBaseUrl + "/api/auth/verify?token=" + emailVerifyToken;
+            String verifyUrl = backendBaseUrl + "/api/v1/auth/verify?token=" + emailVerifyToken;
             emailService.sendVerificationMail(user.getEmail(), verifyUrl);
 
             log.info("이메일 인증 메일 재발송 완료 - 사용자 ID: {}", userId);

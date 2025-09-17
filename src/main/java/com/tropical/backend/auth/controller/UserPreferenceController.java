@@ -43,7 +43,7 @@ import org.springframework.web.bind.annotation.*;
  */
 @Tag(name = "User Preferences", description = "사용자 선호 설정 통합 관리 API")
 @RestController
-@RequestMapping("/api/users/me")
+@RequestMapping("/api/v1/users/me")
 @RequiredArgsConstructor
 public class UserPreferenceController {
 

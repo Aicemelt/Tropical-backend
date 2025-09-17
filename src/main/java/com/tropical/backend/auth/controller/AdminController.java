@@ -19,12 +19,12 @@ import java.util.Map;
  * </p>
  *
  * @author 왕택준
- * @version 0.1
- * @since 2025.09.14
+ * @version 0.2
+ * @since 2025.09.18
  */
 @Slf4j
 @RestController
-@RequestMapping("/api/admin")
+@RequestMapping("/api/v1/admin")
 @RequiredArgsConstructor
 @Tag(name = "Admin", description = "관리자 API")
 public class AdminController {

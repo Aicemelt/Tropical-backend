@@ -42,8 +42,8 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  * </ul>
  *
  * @author 왕택준
- * @version 0.5
- * @since 2025.09.15
+ * @version 0.6
+ * @since 2025.09.18
  */
 @Configuration
 @EnableWebSecurity
@@ -165,18 +165,19 @@ public class SecurityConfig {
                                         // ===============================
                                         // 공휴일 정보 조회 API (Public)
                                         // ===============================
-                                        "/api/holidays/**",          // 모든 공휴일 관련 엔드포인트
+                                        "/api/v1/holidays/**",          // 모든 공휴일 관련 엔드포인트
 
                                         // ===============================
                                         // 실제 서비스 공개 API
                                         // ===============================
-                                        "/api/health",                 // 서버 상태 체크 (모니터링용)
-                                        "/api/auth/signup",            // 이메일 회원가입
-                                        "/api/auth/verify",            // 이메일 인증 확인
-                                        "/api/auth/verify/resend",     // 이메일 인증 코드 재발송
-                                        "/api/auth/login",             // 이메일 로그인
-                                        "/api/auth/token/refresh",     // JWT 토큰 갱신
-                                        "/api/auth/logout",            // 로그아웃 (쿠키 삭제)
+                                        "/api/v1/health",                 // 서버 상태 체크 (모니터링용)
+                                        "/api/v1/terms/**",               // 약관 조회 API (온보딩/마이페이지용)
+                                        "/api/v1/auth/signup",            // 이메일 회원가입
+                                        "/api/v1/auth/verify",            // 이메일 인증 확인
+                                        "/api/v1/auth/verify/resend",     // 이메일 인증 코드 재발송
+                                        "/api/v1/auth/login",             // 이메일 로그인
+                                        "/api/v1/auth/token/refresh",     // JWT 토큰 갱신
+                                        "/api/v1/auth/logout",            // 로그아웃 (쿠키 삭제)
                                         "/login/**",                   // OAuth2 로그인 시작 경로
                                         "/oauth2/**"                   // OAuth2 콜백 및 처리 경로
                                 ).permitAll()
