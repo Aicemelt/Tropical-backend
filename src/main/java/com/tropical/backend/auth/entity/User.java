@@ -182,6 +182,21 @@ public class User {
     private WeekStart weekStart = WeekStart.MON;
 
     /**
+     * 달력 날짜 체계(양력/음력) 설정
+     *
+     * <p>기본값: SOLAR(양력)</p>
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "date_system", nullable = false)
+    @Builder.Default
+    private DateSystem dateSystem = DateSystem.SOLAR;
+
+    /** 편의 메서드: 음력 선호 여부 */
+    public boolean isLunarPreferred() {
+        return this.dateSystem == DateSystem.LUNAR;
+    }
+
+    /**
      * 시간대 설정
      *
      * <p>기본값: Asia/Seoul</p>
@@ -375,6 +390,21 @@ public class User {
          */
         MON
     }
+
+    /**
+     * 달력 날짜 체계 열거형
+     */
+    public enum DateSystem {
+        /**
+         * 양력
+         */
+        SOLAR, //
+        /**
+         * 음력
+         */
+        LUNAR
+    }
+
 
     // ===== 비즈니스 메서드 =====
 
