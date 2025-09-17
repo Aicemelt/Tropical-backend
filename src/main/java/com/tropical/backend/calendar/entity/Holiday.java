@@ -271,6 +271,15 @@ public class Holiday {
     }
 
     /**
+     * 대체공휴일 여부를 반환합니다.
+     *
+     * @return 대체공휴일이면 true, 아니면 false
+     */
+    public boolean isSubstitute() {
+        return Boolean.TRUE.equals(this.isSubstitute);
+    }
+
+    /**
      * 특정 날짜가 이 공휴일 기간에 포함되는지 확인합니다.
      *
      * @param date 확인할 날짜 (null 불가)
