@@ -154,6 +154,20 @@ public class SecurityConfig {
                                         "/error",                      // Spring Boot 기본 에러 페이지
 
                                         // ===============================
+                                        // API 문서화 도구 (개발/테스트용)
+                                        // ===============================
+                                        "/swagger-ui/**",              // Swagger UI 메인 페이지 및 리소스
+                                        "/swagger-ui.html",            // Swagger UI 직접 접근 경로
+                                        "/v3/api-docs/**",             // OpenAPI 3.0 JSON/YAML 문서
+                                        "/swagger-resources/**",       // Swagger 메타데이터 리소스
+                                        "/webjars/**",                 // Swagger UI용 웹 라이브러리 (Bootstrap, jQuery 등)
+
+                                        // ===============================
+                                        // 공휴일 정보 조회 API (Public)
+                                        // ===============================
+                                        "/api/holidays/**",          // 모든 공휴일 관련 엔드포인트
+
+                                        // ===============================
                                         // 실제 서비스 공개 API
                                         // ===============================
                                         "/api/health",                 // 서버 상태 체크 (모니터링용)
