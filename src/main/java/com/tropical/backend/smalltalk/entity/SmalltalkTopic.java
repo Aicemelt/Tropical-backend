@@ -1,6 +1,7 @@
 package com.tropical.backend.smalltalk.entity;
 
 import com.tropical.backend.auth.entity.User;
+import com.tropical.backend.smalltalk.dto.response.AISmallTalkResponse;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -8,6 +9,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Entity
 @Table(name = "smalltalk_topic")
@@ -48,5 +50,30 @@ public class SmalltalkTopic {
     private List<SmalltalkSources> smalltalkSources = new ArrayList<>();
 
 
+    // AI 응답 저장용 편의 메소드
+    public static SmalltalkTopic toEntity(AISmallTalkResponse dto, User user) {
+
+        SmalltalkTopic topic = SmalltalkTopic.builder()
+                .topicType(dto.topicType())
+                .topicContent(dto.topicContent())
+                .exampleQuestion(dto.exampleQuestion())
+                .user(user)
+                .build();
+
+        List<SmalltalkSources> sources = dto.source().stream()
+                .map(
+                        aiSourceDto -> SmalltalkSources.builder()
+                                .sourceId(aiSourceDto.sourceId())
+                                .sourceType(aiSourceDto.sourceType())
+                                .smalltalkTopic(topic)
+                                .build()
+                )
+                .collect(Collectors.toList());
+
+        topic.getSmalltalkSources().addAll(sources);
+
+        return topic;
+
+    }
 
 }

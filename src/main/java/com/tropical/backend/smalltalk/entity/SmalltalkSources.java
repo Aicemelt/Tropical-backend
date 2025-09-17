@@ -1,5 +1,6 @@
 package com.tropical.backend.smalltalk.entity;
 
+import com.tropical.backend.smalltalk.SourceType;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -36,10 +37,5 @@ public class SmalltalkSources {
     @JoinColumn(name = "smalltalk_id", nullable = false)
     private SmalltalkTopic smalltalkTopic;
 
-
-
-    public enum SourceType {
-        SCHEDULE, DIARY, TODO, BUCKET
-    }
 }
 

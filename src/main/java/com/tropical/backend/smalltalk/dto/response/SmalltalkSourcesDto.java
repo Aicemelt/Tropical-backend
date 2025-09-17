@@ -1,13 +1,16 @@
 package com.tropical.backend.smalltalk.dto.response;
 
+import com.tropical.backend.smalltalk.SourceType;
 import com.tropical.backend.smalltalk.entity.SmalltalkSources;
 
 public record SmalltalkSourcesDto(
+    Long sourceId,
     String sourceType
 ) {
-    public static SmalltalkSourcesDto from(SmalltalkSources sources) {
+    public static SmalltalkSourcesDto from(SmalltalkSources source) {
         return new SmalltalkSourcesDto(
-                sources.getSourceType().name()
+                source.getSourceId(),
+                source.getSourceType().name()
         );
     }
 }
