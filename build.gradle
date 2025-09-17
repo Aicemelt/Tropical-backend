@@ -83,8 +83,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-websocket' // STOMP/SockJS 구성 시 사용
 
     // --- API 문서화 (OpenAPI/Swagger) ---
-    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0'
-    // implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.13' // 최신 안정판
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.13' // 최신 안정판
 
     // --- Dotenv (.env 자동 로딩) ---
     implementation 'me.paulschwarz:spring-dotenv:4.0.0'  // Spring 환경으로 .env 값 주입
