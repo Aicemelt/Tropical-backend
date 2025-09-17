@@ -61,10 +61,18 @@ dependencies {
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'            // JUnit 플랫폼 런처
 
     // --- QueryDSL (타입 안전한 JPQL) ---
+    // 반드시 한 쪽만 활성화
+    // 구버전 라인: com.querydsl 5.x — Jakarta 분류자(:jakarta) 필요.
     implementation 'com.querydsl:querydsl-jpa:5.0.0:jakarta'                // Jakarta 기반 JPA 모듈
     annotationProcessor 'com.querydsl:querydsl-apt:5.0.0:jakarta'           // Q-클래스 생성용 APT
     annotationProcessor 'jakarta.persistence:jakarta.persistence-api:3.1.0' // JPA 메타 모델(APT용)
+    // 최신 라인: OpenFeign QueryDSL 6.12 — 그룹ID 변경, :jakarta 제거, APT는 :jpa 사용.
+    // implementation 'io.github.openfeign.querydsl:querydsl-jpa:6.12'
+    // annotationProcessor 'io.github.openfeign.querydsl:querydsl-apt:6.12:jpa'
+    // implementation 'io.github.openfeign.querydsl:querydsl-jpa-spring:6.12' // (선택) Spring Data 보조 모듈
+
     // * Q-클래스는 기본적으로 build/generated/sources/annotationProcessor/java/main 하위에 생성됨
+    // * IntelliJ: Settings > Build, Execution, Deployment > Compiler > Annotation Processors > Enable ON
 
     // --- JWT (jjwt 0.12.x: api/impl/jackson 3종 구성 필수) ---
     implementation 'io.jsonwebtoken:jjwt-api:0.12.3'     // API (컴파일 타임)
@@ -73,6 +81,10 @@ dependencies {
 
     // --- WebSocket (실시간 통신) ---
     implementation 'org.springframework.boot:spring-boot-starter-websocket' // STOMP/SockJS 구성 시 사용
+
+    // --- API 문서화 (OpenAPI/Swagger) ---
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0'
+    // implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.13' // 최신 안정판
 
     // --- Dotenv (.env 자동 로딩) ---
     implementation 'me.paulschwarz:spring-dotenv:4.0.0'  // Spring 환경으로 .env 값 주입
