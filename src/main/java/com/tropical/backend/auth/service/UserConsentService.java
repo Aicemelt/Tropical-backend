@@ -93,7 +93,7 @@ public class UserConsentService {
             Boolean agreed = entry.getValue();
 
             // 해당 동의 타입의 활성 약관 조회 (최신 1건만 보장)
-            Optional<Terms> activeTerms = termsRepository.findTopByConsentTypeAndActiveTrueOrderByCreatedAtDesc(consentType);
+            Optional<Terms> activeTerms = termsRepository.findByConsentTypeAndActiveTrue(consentType);
             Terms terms = activeTerms.orElse(null);
 
             if (terms == null) {
@@ -210,7 +210,7 @@ public class UserConsentService {
         User user = userOpt.get();
 
         // 현재 활성 약관 조회 (최신 1건만 보장)
-        Optional<Terms> activeTermsOpt = termsRepository.findTopByConsentTypeAndActiveTrueOrderByCreatedAtDesc(consentType);
+        Optional<Terms> activeTermsOpt = termsRepository.findByConsentTypeAndActiveTrue(consentType);
         Terms activeTerms = activeTermsOpt.orElse(null);
 
         // 기존 동의 정보 조회 또는 생성
@@ -280,7 +280,7 @@ public class UserConsentService {
         log.debug("재동의 필요 사용자 조회 - 동의 타입: {}", consentType);
 
         // 현재 활성 약관 조회 (최신 1건만 보장)
-        Optional<Terms> activeTermsOpt = termsRepository.findTopByConsentTypeAndActiveTrueOrderByCreatedAtDesc(consentType);
+        Optional<Terms> activeTermsOpt = termsRepository.findByConsentTypeAndActiveTrue(consentType);
         if (activeTermsOpt.isEmpty()) {
             log.warn("활성 약관 없음 - 동의 타입: {}", consentType);
             return List.of();
