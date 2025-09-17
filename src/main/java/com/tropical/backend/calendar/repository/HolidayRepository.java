@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -26,9 +27,9 @@ import java.util.List;
  *   <li>중복 저장 방지를 위한 존재 여부 확인</li>
  * </ul>
  *
- * @author  왕택준
+ * @author 왕택준
  * @version 0.1
- * @since   2025.09.16
+ * @since 2025.09.16
  */
 @Repository
 public interface HolidayRepository extends JpaRepository<Holiday, Long> {
@@ -68,6 +69,28 @@ public interface HolidayRepository extends JpaRepository<Holiday, Long> {
     List<Holiday> findHolidaysContainingDate(
             @Param("countryCode") String countryCode,
             @Param("date") LocalDate date
+    );
+
+
+    /**
+     * 특정 날짜에 해당하는 공휴일 중 지정된 타입만 조회합니다.
+     *
+     * @param countryCode 국가 코드
+     * @param date        조회 날짜
+     * @param types       포함할 공휴일 타입 목록 (예: PUBLIC_HOLIDAY, NATIONAL_HOLIDAY, SUBSTITUTE_HOLIDAY)
+     * @return 지정된 날짜와 타입 조건을 만족하는 공휴일 목록(시작일 오름차순)
+     */
+    @Query("""
+            select h from Holiday h
+            where h.countryCode = :countryCode
+              and :date between h.startDate and h.endDate
+              and h.holidayType in :types
+            order by h.startDate
+            """)
+    List<Holiday> findOnDateByTypes(
+            @Param("countryCode") String countryCode,
+            @Param("date") LocalDate date,
+            @Param("types") Collection<Holiday.HolidayType> types
     );
 
     /**
