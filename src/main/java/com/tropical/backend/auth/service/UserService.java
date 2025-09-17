@@ -34,8 +34,8 @@ import java.util.Optional;
  * </ul>
  *
  * @author 왕택준
- * @version 0.2
- * @since 2025.09.13
+ * @version 0.3
+ * @since 2025.09.18
  */
 @Service
 @RequiredArgsConstructor
@@ -390,7 +390,7 @@ public class UserService {
      * <p>
      * 물리적 삭제 대신 논리적 삭제를 수행합니다.
      * 사용자 상태를 DELETED로 변경하고 개인정보를 마스킹 처리합니다.
-     * 관련된 소셜 계정과 동의 정보도 함께 삭제됩니다.
+     * 소셜 계정은 삭제하지만, 동의 정보는 법적 증빙을 위해 보존됩니다.
      * </p>
      *
      * @param userId 탈퇴 처리할 사용자 ID
@@ -410,17 +410,17 @@ public class UserService {
         String originalEmail = user.getEmail();
         String originalNickname = user.getNickname();
 
-        // 논리적 삭제 및 개인정보 마스킹
+        // 사용자 논리적 삭제 및 개인정보 마스킹
         user.softDelete();
         userRepository.save(user);
 
         // 연관된 소셜 계정 정보 삭제
         socialAccountRepository.deleteByUserId(userId);
 
-        // 연관된 동의 정보 삭제
-        userConsentRepository.deleteByUserId(userId);
+        // 동의 정보는 법적 증빙을 위해 보존
+        // 논리적 삭제된 사용자는 Repository 쿼리에서 자동으로 필터링
 
-        log.info("회원 탈퇴 완료 - 사용자 ID: {}, 원본 이메일: {}, 원본 닉네임: {}",
+        log.info("회원 탈퇴 완료 - 사용자 ID: {}, 원본 이메일: {}, 원본 닉네임: {} (동의 기록은 법적 증빙용 보존)",
                 userId, originalEmail, originalNickname);
         return true;
     }
