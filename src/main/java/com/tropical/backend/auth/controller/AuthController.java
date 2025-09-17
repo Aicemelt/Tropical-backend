@@ -14,6 +14,8 @@ import com.tropical.backend.common.util.CookieUtil;
 import com.tropical.backend.config.auth.JwtAuthenticationFilter;
 import com.tropical.backend.config.auth.JwtTokenProvider;
 import io.jsonwebtoken.Claims;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.transaction.Transactional;
@@ -88,6 +90,12 @@ public class AuthController {
      * @return 회원가입 결과와 다음 단계 안내
      */
     @PostMapping("/signup")
+    @Operation(
+            summary = "로컬 계정 회원가입",
+            description = "이메일과 비밀번호를 사용하는 로컬 계정을 생성하고 이메일 인증 메일을 발송합니다."
+    )
+    @ApiResponse(responseCode = "200", description = "회원가입 성공 및 이메일 인증 대기")
+    @ApiResponse(responseCode = "400", description = "회원가입 실패 (이메일 중복, 필수 동의 누락 등)")
     @Transactional
     public ResponseEntity<?> signup(@Valid @RequestBody SignupRequest signupRequest) {
         log.info("로컬 계정 회원가입 요청 - 이메일: {}, 닉네임: {}",

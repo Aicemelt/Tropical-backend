@@ -7,6 +7,8 @@ import com.tropical.backend.auth.entity.UserConsent.ConsentType;
 import com.tropical.backend.auth.service.TermsService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -112,9 +114,12 @@ public class TermsController {
             description = "쿼리 파라미터를 통해 필수/선택 약관을 구분 조회하거나 요약 정보만 가져올 수 있습니다."
     )
     public ResponseEntity<?> getActiveTerms(
-            @Parameter(description = "약관 타입 필터", example = "required")
+            @Parameter(description = "약관 타입 필터", example = "REQUIRED",
+                    schema = @Schema(allowableValues = {"ALL", "REQUIRED", "OPTIONAL"}))
             @RequestParam(defaultValue = "ALL") TermsFilterType type,
-            @Parameter(description = "응답 형식", example = "summary")
+
+            @Parameter(description = "응답 형식", example = "SUMMARY",
+                    schema = @Schema(allowableValues = {"DETAIL", "SUMMARY"}))
             @RequestParam(defaultValue = "DETAIL") ResponseFormat format) {
 
         // 요약 정보 요청인 경우
@@ -182,8 +187,10 @@ public class TermsController {
     @PostMapping
     @Operation(
             summary = "새 약관 버전 생성(배포)",
-            description = "기존 활성 약관을 비활성화한 후, 새 버전을 활성으로 저장합니다. 성공 시 201 Created 반환"
+            description = "기존 활성 약관을 비활성화한 후, 새 버전을 활성으로 저장합니다."
     )
+    @ApiResponse(responseCode = "201", description = "약관 생성 성공")
+    @ApiResponse(responseCode = "400", description = "잘못된 요청 데이터")
     public ResponseEntity<TermsResponse> createTerms(@Valid @RequestBody TermsRequest request) {
         TermsResponse saved = termsService.createNewTermsVersion(
                 request.getConsentType(),
