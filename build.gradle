@@ -10,6 +10,10 @@ group = 'com.tropical'
 version = '0.0.1-SNAPSHOT'
 description = 'Tropical-backend'
 
+ext {
+    set('springAiVersion', '1.0.0-M5')
+}
+
 java {
     toolchain {
         // 프로젝트 전역 Java 버전(빌드/런타임) 고정
@@ -27,7 +31,9 @@ configurations {
 repositories {
     // 중앙 저장소 사용(회사 Nexus/Artifactory 없을 때 기본)
     mavenCentral()
+    maven { url 'https://repo.spring.io/milestone' }
 }
+
 
 dependencies {
 
@@ -75,6 +81,9 @@ dependencies {
 
     // --- Dotenv (.env 자동 로딩) ---
     implementation 'me.paulschwarz:spring-dotenv:4.0.0'  // Spring 환경으로 .env 값 주입
+
+    // --- Spring AI (Google AI via OpenAI compatible API) ---
+    implementation "org.springframework.ai:spring-ai-openai-spring-boot-starter:${springAiVersion}" // spring AI 사용
 }
 
 tasks.named('test') {
