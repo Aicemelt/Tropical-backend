@@ -13,6 +13,7 @@ import java.time.LocalDateTime;
  * <p>
  * 필수 동의와 선택 동의를 구분하여 관리하며,
  * AI 추천 서비스의 개인화 수준을 결정하는 핵심 정보입니다.
+ * 약관 버전 추적을 통해 법적 요구사항을 준수합니다.
  * </p>
  *
  * <p>주요 기능:</p>
@@ -20,12 +21,13 @@ import java.time.LocalDateTime;
  *   <li>필수 동의: 서비스 이용을 위한 최소 요구사항</li>
  *   <li>선택 동의: AI 추천 개인화를 위한 추가 데이터 수집 동의</li>
  *   <li>동의 철회 및 변경 이력 관리</li>
+ *   <li>약관 버전별 동의 추적 - 법적 증빙 지원</li>
  *   <li>GDPR 및 개인정보보호법 준수</li>
  * </ul>
  *
  * @author 왕택준
- * @version 0.1
- * @since 2025.09.13
+ * @version 0.2
+ * @since 2025.09.17
  */
 @Entity
 @Table(name = "user_consent",
@@ -34,7 +36,8 @@ import java.time.LocalDateTime;
                 name = "uk_user_consent_type"
         ))
 @Getter
-@ToString(exclude = {"user"})
+@Setter
+@ToString(exclude = {"user", "terms"})
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
@@ -80,6 +83,29 @@ public class UserConsent {
      */
     @Column(nullable = false)
     private Boolean agreed;
+
+    /**
+     * 연결된 약관 정보
+     *
+     * <p>
+     * 사용자가 동의한 약관의 원문과 연결됩니다.
+     * 약관이 업데이트되어도 동의 당시의 약관 정보를 추적할 수 있습니다.
+     * </p>
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "terms_id")
+    private Terms terms;
+
+    /**
+     * 동의 당시 약관 버전 스냅샷
+     *
+     * <p>
+     * 법적 증빙을 위해 사용자가 동의한 약관의 정확한 버전을 보존합니다.
+     * 약관이 업데이트되어도 "어떤 버전에 동의했는지"를 추적할 수 있습니다.
+     * </p>
+     */
+    @Column(name = "terms_version_snapshot", length = 10)
+    private String termsVersionSnapshot;
 
     /**
      * 동의 처리 시간
@@ -223,34 +249,73 @@ public class UserConsent {
     // ===== 비즈니스 메서드 =====
 
     /**
-     * 사용자 동의 생성 정적 팩토리 메서드
+     * 사용자 동의 생성 정적 팩토리 메서드 (약관 버전 추적 포함)
+     *
+     * <p>
+     * 약관과 연결된 동의를 생성하며, 동의 당시의 약관 버전을 스냅샷으로 저장합니다.
+     * 법적 증빙을 위해 어떤 버전의 약관에 동의했는지 추적할 수 있습니다.
+     * </p>
+     *
+     * @param user        동의한 사용자
+     * @param consentType 동의 항목 타입
+     * @param agreed      동의 여부
+     * @param activeTerms 동의 당시 활성 약관 (null 가능)
+     * @return 사용자 동의 엔터티
+     */
+    public static UserConsent createUserConsent(User user, ConsentType consentType, boolean agreed, Terms activeTerms) {
+        return UserConsent.builder()
+                .user(user)
+                .consentType(consentType)
+                .agreed(agreed)
+                .terms(activeTerms)
+                .termsVersionSnapshot(activeTerms != null ? activeTerms.getVersion() : null)
+                .build();
+    }
+
+    /**
+     * 기존 호환성을 위한 팩토리 메서드
      *
      * @param user        동의한 사용자
      * @param consentType 동의 항목 타입
      * @param agreed      동의 여부
      * @return 사용자 동의 엔터티
+     * @deprecated 약관 버전 추적을 위해 {@link #createUserConsent(User, ConsentType, boolean, Terms)} 사용 권장
      */
+    @Deprecated
     public static UserConsent createUserConsent(User user, ConsentType consentType, boolean agreed) {
-        return UserConsent.builder()
-                .user(user)
-                .consentType(consentType)
-                .agreed(agreed)
-                .build();
+        return createUserConsent(user, consentType, agreed, null);
     }
 
     /**
-     * 동의 상태 변경
+     * 동의 상태 변경 (약관 버전 업데이트 포함)
      *
      * <p>
-     * 동의 상태를 변경하면 agreedAt 시간이 자동으로 업데이트됩니다.
-     * 이는 JPA의 @CreationTimestamp와 함께 동작하여 변경 이력을 추적합니다.
+     * 동의 상태를 변경하면서 현재 활성 약관 정보도 함께 업데이트합니다.
+     * 동의 변경 시점의 약관 버전을 정확히 추적할 수 있습니다.
      * </p>
      *
-     * @param agreed 새로운 동의 상태
+     * @param agreed      새로운 동의 상태
+     * @param activeTerms 현재 활성 약관 (null 가능)
      */
-    public void updateAgreement(boolean agreed) {
+    public void updateAgreement(boolean agreed, Terms activeTerms) {
         this.agreed = agreed;
         this.agreedAt = LocalDateTime.now();
+
+        if (activeTerms != null) {
+            this.terms = activeTerms;
+            this.termsVersionSnapshot = activeTerms.getVersion();
+        }
+    }
+
+    /**
+     * 동의 상태 변경 (기존 호환성 유지)
+     *
+     * @param agreed 새로운 동의 상태
+     * @deprecated 약관 버전 추적을 위해 {@link #updateAgreement(boolean, Terms)} 사용 권장
+     */
+    @Deprecated
+    public void updateAgreement(boolean agreed) {
+        updateAgreement(agreed, null);
     }
 
     /**
@@ -293,7 +358,7 @@ public class UserConsent {
         if (this.consentType.isRequired()) {
             throw new IllegalStateException("필수 동의 항목은 철회할 수 없습니다: " + this.consentType.getDescription());
         }
-        updateAgreement(false);
+        updateAgreement(false, this.terms); // 현재 약관 정보 유지하면서 철회
     }
 
     /**
@@ -302,6 +367,45 @@ public class UserConsent {
      * <p>철회된 선택 동의 항목에 대해 다시 동의할 때 사용합니다.</p>
      */
     public void reConsent() {
-        updateAgreement(true);
+        updateAgreement(true, this.terms); // 현재 약관 정보 유지하면서 재동의
+    }
+
+    /**
+     * 약관 버전 업데이트
+     *
+     * <p>
+     * 새로운 약관 버전이 등록되었을 때 사용자의 동의 정보에 연결된
+     * 약관 정보를 업데이트합니다. 동의 상태는 유지됩니다.
+     * </p>
+     *
+     * @param newActiveTerms 새로운 활성 약관
+     */
+    public void updateTermsReference(Terms newActiveTerms) {
+        if (newActiveTerms != null && newActiveTerms.getConsentType() == this.consentType) {
+            this.terms = newActiveTerms;
+            this.termsVersionSnapshot = newActiveTerms.getVersion();
+        }
+    }
+
+    /**
+     * 동의한 약관 버전 확인
+     *
+     * @return 동의한 약관의 버전 (스냅샷)
+     */
+    public String getAgreedTermsVersion() {
+        return termsVersionSnapshot;
+    }
+
+    /**
+     * 최신 약관 버전과 비교
+     *
+     * @param currentActiveTerms 현재 활성 약관
+     * @return 동의한 버전이 최신 버전과 같으면 true
+     */
+    public boolean isAgreedToLatestVersion(Terms currentActiveTerms) {
+        if (currentActiveTerms == null || termsVersionSnapshot == null) {
+            return false;
+        }
+        return termsVersionSnapshot.equals(currentActiveTerms.getVersion());
     }
 }
