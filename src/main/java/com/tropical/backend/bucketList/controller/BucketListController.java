@@ -7,6 +7,7 @@ import com.tropical.backend.bucketList.dto.request.BucketListCreateRequest;
 import com.tropical.backend.bucketList.dto.request.BucketListUpdateRequest;
 import com.tropical.backend.bucketList.dto.response.BucketListResponse;
 import com.tropical.backend.bucketList.service.BucketListService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -33,6 +34,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/buckets")
 @RequiredArgsConstructor
+@Tag(name = "BucketList", description = "버킷리스트 API")
 public class BucketListController {
 
     private final BucketListService bucketListService;

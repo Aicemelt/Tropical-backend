@@ -14,6 +14,7 @@ import com.tropical.backend.common.util.CookieUtil;
 import com.tropical.backend.config.auth.JwtAuthenticationFilter;
 import com.tropical.backend.config.auth.JwtTokenProvider;
 import io.jsonwebtoken.Claims;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
@@ -59,6 +60,7 @@ import java.util.Map;
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
 @Slf4j
+@Tag(name = "Authentication", description = "인증/회원가입 API")
 public class AuthController {
 
     private final UserService userService;
