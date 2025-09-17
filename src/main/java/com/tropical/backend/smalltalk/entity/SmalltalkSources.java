@@ -1,6 +1,6 @@
 package com.tropical.backend.smalltalk.entity;
 
-import com.tropical.backend.smalltalk.SourceType;
+import com.tropical.backend.smalltalk.enums.SourceType;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;

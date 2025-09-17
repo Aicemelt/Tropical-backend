@@ -1,20 +1,35 @@
 package com.tropical.backend.smalltalk.service;
 
 import com.tropical.backend.auth.entity.User;
+import com.tropical.backend.auth.entity.UserConsent;
+import com.tropical.backend.auth.repository.UserConsentRepository;
 import com.tropical.backend.auth.repository.UserRepository;
 import com.tropical.backend.bucketList.repository.BucketListRepository;
 import com.tropical.backend.diary.entity.Diary;
 import com.tropical.backend.diary.repository.DiaryRepository;
+import com.tropical.backend.schedule.entity.Schedule;
 import com.tropical.backend.schedule.repository.ScheduleRepository;
+import com.tropical.backend.smalltalk.dto.request.ActivityDto;
+import com.tropical.backend.smalltalk.dto.request.TopicGenerateRequest;
 import com.tropical.backend.smalltalk.dto.response.AISmallTalkResponse;
+import com.tropical.backend.smalltalk.enums.SourceType;
 import com.tropical.backend.todo.repository.TodoRepository;
+import lombok.Builder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
+
+import static com.tropical.backend.smalltalk.enums.SourceType.*;
 
 @Transactional
 @Service
@@ -27,6 +42,7 @@ public class SmallTalkService {
     private final ScheduleRepository scheduleRepository;
     private final DiaryRepository diaryRepository;
     private final BucketListRepository bucketListRepository;
+    private final UserConsentRepository userConsentRepository;
 
     private final ChatClient chatClient;
 
@@ -97,11 +113,77 @@ public class SmallTalkService {
             - **오직 JSON 데이터만 출력하고 다른 텍스트는 포함하지 마세요**
             """;
 
+    /**
+     * AI 에게 주제 추천을 받을 요청 DTO를 생성하는 메소드 입니다.
+     * @param email - 사용자 email
+     * @return TopicGenerateRequest
+     */
+    public TopicGenerateRequest getTopic(String email) {
 
-    public List<AISmallTalkResponse> getTopic(String email) {
         // 1. 유저 정보 조회
         User user = userRepository.findByEmail(email).orElseThrow();
-        return null;
+        Long userId = user.getId();
+
+        // 2. 유저 id로 약관동의한 내용 조회
+        List<UserConsent.ConsentType> agreeConsentList = userConsentRepository.findAgreedOptionalConsentTypes(userId);
+        /*
+        * [일기, 투두, 버킷]
+        */
+
+        // 3. 동의한 db & 일정 내용을 조회, dto 생성
+        // 3-0. 날짜 범위 설정 (startDate: 현재 날짜 기준 7일 전 / EndDate: 현재 날짜)
+        LocalDate endDate = LocalDate.now();
+        LocalDate startDate = endDate.minusDays(7);
+
+        Map<SourceType, List<ActivityDto>> activities = new HashMap<>();
+
+        // 3-1. 일정 조회, ActivityDto 매핑
+        List<Schedule> scheduleList = scheduleRepository.findByUserIdAndScheduleDateBetween(userId, startDate, endDate);
+        List<ActivityDto> schedules = scheduleList.stream()
+                .map(schedule ->
+                        new ActivityDto(schedule.getTitle(), schedule.getMemo(), schedule.getCreatedAt()))
+                .collect(Collectors.toList());
+
+
+        activities.put(SCHEDULE, schedules);
+
+        // 3-2. 동의한 db로 내용 조회, ActivityDto 매핑
+        Map<SourceType, Supplier<List<ActivityDto>>> suppliers = Map.of(
+                DIARY, () -> diaryRepository.findByUserIdAndDiaryDateBetween(userId, startDate, endDate)
+                        .stream()
+                        .map(diary -> new ActivityDto(diary.getTitle(), diary.getContent(), diary.getCreatedAt()))
+                        .collect(Collectors.toList()),
+
+                TODO, () -> todoRepository.findByUserAndDueDateBetween(user, startDate, endDate)
+                        .stream()
+                        .map(todo -> new ActivityDto("", todo.getContent(), todo.getCreatedAt()))
+                        .collect(Collectors.toList()),
+
+                BUCKET, () -> bucketListRepository.findByUserOrderByCreatedAtDesc(user)
+                        .stream()
+                        .map(bucket -> new ActivityDto("", bucket.getContent(), bucket.getCreatedAt()))
+                        .collect(Collectors.toList())
+        );
+
+
+        agreeConsentList.forEach(consent -> {
+            Supplier<List<ActivityDto>> supplier = suppliers.get(mapConsentToSourceType(consent));
+            if (supplier != null) {
+                activities.put(mapConsentToSourceType(consent), supplier.get());
+            }
+        });
+
+        return new TopicGenerateRequest(7, activities);
+    }
+
+    // 약관 동의 enum과 소스 타입 enum을 매핑하는 메소드
+    private SourceType mapConsentToSourceType(UserConsent.ConsentType consent) {
+        return switch (consent) {
+            case DIARY_PERSONALIZATION -> DIARY;
+            case TODO_PERSONALIZATION -> TODO;
+            case BUCKET_PERSONALIZATION -> BUCKET;
+            default -> throw new RuntimeException("");
+        };
     }
 
 }

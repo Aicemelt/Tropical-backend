@@ -1,6 +1,5 @@
 package com.tropical.backend.smalltalk.dto.response;
 
-import com.tropical.backend.smalltalk.SourceType;
 import com.tropical.backend.smalltalk.entity.SmalltalkSources;
 
 public record SmalltalkSourcesDto(
