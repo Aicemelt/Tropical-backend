@@ -41,7 +41,7 @@ spring:
   # JPA/Hibernate 설정
   jpa:
     hibernate:
-      ddl-auto: create-drop  # 스키마 자동 관리 (update: 변경사항만 반영, create-drop: 시작시 생성/종료시 삭제)
+      ddl-auto: create  # 스키마 자동 관리 (update: 변경사항만 반영, create-drop: 시작시 생성/종료시 삭제)
     open-in-view: false  # OSIV 비활성화 (성능상 권장, 지연로딩 문제 방지)
     show-sql: true  # 실행되는 SQL 쿼리를 콘솔에 출력
     properties:
