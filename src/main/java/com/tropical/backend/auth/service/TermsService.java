@@ -10,10 +10,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -152,21 +150,38 @@ public class TermsService {
      *
      * <p>
      * 온보딩 페이지의 체크박스 목록 구성이나 마이페이지의 약관 목록 표시에 사용됩니다.
-     * 약관의 상세 내용 없이 제목, 버전, 필수/선택 여부 등의 메타데이터만 제공하여
-     * 가벼운 응답을 보장합니다.
+     * 동일 ConsentType의 활성 약관이 여러 개 있을 경우 최신 1건만 반환하여 운영 안전성을 보장합니다.
+     * 응답 순서는 ConsentType 이름순으로 고정하여 UI 일관성을 확보합니다.
      * </p>
      *
-     * @return 모든 활성 약관의 요약 정보 목록
+     * @return 모든 활성 약관의 요약 정보 목록 (중복 제거, 정렬 보장)
      */
+    @Transactional(readOnly = true)
     public List<TermsSummaryResponse> getAllActiveTermsSummary() {
         log.debug("모든 활성 약관 요약 목록 조회 시작");
 
-        List<TermsSummaryResponse> summaryList = termsRepository.findByActiveTrueOrderByConsentType()
-                .stream()
+        // 활성 약관 전부 조회
+        List<Terms> activeTerms = termsRepository.findByActiveTrueOrderByConsentType();
+
+        // 동일 ConsentType 중복이 있으면 createdAt 기준 최신 1건만 선별
+        Map<ConsentType, Terms> latestByType = activeTerms.stream()
+                .collect(Collectors.toMap(
+                        Terms::getConsentType,
+                        Function.identity(),
+                        // 충돌 시 최신 것으로 선택 (createdAt 비교)
+                        (existing, replacement) ->
+                                existing.getCreatedAt().isAfter(replacement.getCreatedAt()) ? existing : replacement,
+                        // EnumMap 사용으로 성능 최적화
+                        () -> new EnumMap<>(ConsentType.class)
+                ));
+
+        // ConsentType 이름순 정렬 후 요약 DTO 변환
+        List<TermsSummaryResponse> summaryList = latestByType.values().stream()
+                .sorted(Comparator.comparing(terms -> terms.getConsentType().name()))
                 .map(TermsSummaryResponse::from)
                 .collect(Collectors.toList());
 
-        log.info("활성 약관 요약 목록 조회 완료 - 조회된 약관 수: {}", summaryList.size());
+        log.info("활성 약관 요약 목록 조회 완료 - 조회된 약관 수: {}, 중복 제거 적용", summaryList.size());
         return summaryList;
     }
 
