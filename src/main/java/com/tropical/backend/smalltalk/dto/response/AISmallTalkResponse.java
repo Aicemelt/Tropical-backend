@@ -6,7 +6,7 @@ public record AISmallTalkResponse(
     String topicType,
     String topicContent,
     String exampleQuestion,
-    List<AISourceDto> source
+    List<AISourceDto> sources
 
 ) {
 }

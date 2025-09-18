@@ -14,6 +14,7 @@ import com.tropical.backend.smalltalk.dto.request.TopicGenerateRequest;
 import com.tropical.backend.smalltalk.enums.SourceType;
 import com.tropical.backend.todo.entity.Todo;
 import com.tropical.backend.todo.repository.TodoRepository;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -22,6 +23,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.annotation.Rollback;
 import org.springframework.transaction.annotation.Transactional;
 
+import javax.swing.text.html.parser.Entity;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -52,6 +54,9 @@ class SmallTalkServiceTest {
 
     @Autowired
     ScheduleRepository scheduleRepository;
+
+    @Autowired
+    EntityManager em;
 
     @BeforeEach
     void setUp() {
@@ -157,6 +162,8 @@ class SmallTalkServiceTest {
         String email = "testuser@example.com";
         // when
         smallTalkService.makeAIRequest(email);
+        em.flush();
+        em.clear();
         // then
         // System.out.println("topic = " + topic);
     }

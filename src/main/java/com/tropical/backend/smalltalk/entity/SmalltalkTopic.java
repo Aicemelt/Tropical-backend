@@ -45,6 +45,7 @@ public class SmalltalkTopic {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
+    @Setter
     @OneToMany(mappedBy = "smalltalkTopic", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<SmalltalkSources> smalltalkSources = new ArrayList<>();
@@ -60,7 +61,7 @@ public class SmalltalkTopic {
                 .user(user)
                 .build();
 
-        List<SmalltalkSources> sources = dto.source().stream()
+        List<SmalltalkSources> sources = dto.sources().stream()
                 .map(
                         aiSourceDto -> SmalltalkSources.builder()
                                 .sourceId(aiSourceDto.sourceId())
@@ -70,7 +71,7 @@ public class SmalltalkTopic {
                 )
                 .collect(Collectors.toList());
 
-        topic.getSmalltalkSources().addAll(sources);
+        topic.setSmalltalkSources(sources);
 
         return topic;
 

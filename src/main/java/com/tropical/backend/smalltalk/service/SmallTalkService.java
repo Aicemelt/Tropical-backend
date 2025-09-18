@@ -215,14 +215,17 @@ public class SmallTalkService {
 
         // 4. 생성된 주제를 db에 저장
         // 4-1. 응답에서 ```json, ```을 제거
-        String response = rawResponse.replaceAll("```json", "")
+        /*String response = rawResponse.replaceAll("```json", "")
                 .replaceAll("```", "")
                 .trim();
+*/      log.info("AI Raw Response: {}", rawResponse);
 
        try {
-           List<AISmallTalkResponse> aiTopics = objectMapper.readValue(response, new TypeReference<List<AISmallTalkResponse>>() {
+           List<AISmallTalkResponse> responses = objectMapper.readValue(rawResponse, new TypeReference<List<AISmallTalkResponse>>() {
            });
-           List<SmalltalkTopic> topics = aiTopics.stream().map(
+
+           log.info("json parse log: {}", responses);
+           List<SmalltalkTopic> topics = responses.stream().map(
                            aiTopic -> SmalltalkTopic.toEntity(aiTopic, user)
                    )
                    .collect(Collectors.toList());
