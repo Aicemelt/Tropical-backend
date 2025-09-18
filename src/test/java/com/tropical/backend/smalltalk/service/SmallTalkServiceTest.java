@@ -156,9 +156,9 @@ class SmallTalkServiceTest {
         // given
         String email = "testuser@example.com";
         // when
-        String topic = smallTalkService.makeAIRequest(email);
+        smallTalkService.makeAIRequest(email);
         // then
-        System.out.println("topic = " + topic);
+        // System.out.println("topic = " + topic);
     }
 
     @Test

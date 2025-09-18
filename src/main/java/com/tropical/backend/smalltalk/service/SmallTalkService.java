@@ -1,5 +1,7 @@
 package com.tropical.backend.smalltalk.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tropical.backend.auth.entity.User;
 import com.tropical.backend.auth.entity.UserConsent;
 import com.tropical.backend.auth.repository.UserConsentRepository;
@@ -12,7 +14,9 @@ import com.tropical.backend.schedule.repository.ScheduleRepository;
 import com.tropical.backend.smalltalk.dto.request.ActivityDto;
 import com.tropical.backend.smalltalk.dto.request.TopicGenerateRequest;
 import com.tropical.backend.smalltalk.dto.response.AISmallTalkResponse;
+import com.tropical.backend.smalltalk.entity.SmalltalkTopic;
 import com.tropical.backend.smalltalk.enums.SourceType;
+import com.tropical.backend.smalltalk.repository.SmalltalkTopicRepository;
 import com.tropical.backend.todo.repository.TodoRepository;
 import lombok.Builder;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +31,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static com.tropical.backend.smalltalk.enums.SourceType.*;
@@ -43,6 +48,8 @@ public class SmallTalkService {
     private final DiaryRepository diaryRepository;
     private final BucketListRepository bucketListRepository;
     private final UserConsentRepository userConsentRepository;
+    private final SmalltalkTopicRepository smalltalkTopicRepository;
+    private final ObjectMapper objectMapper;
 
     private final ChatClient chatClient;
 
@@ -137,21 +144,7 @@ public class SmallTalkService {
            """;
 
 
-    private String getTopic(TopicGenerateRequest req) {
-        try {
-            String response = chatClient
-                    .prompt()
-                    .system(SYSTEM_TEMPLATE)
-                    .user(u -> u.text(req.toString()))
-                    .call()
-                    .content();
 
-            return response;
-
-        } catch (Exception e) {
-            throw new RuntimeException("주제 추천 중 오류 발생");
-        }
-    }
 
 
     /**
@@ -159,7 +152,7 @@ public class SmallTalkService {
      * @param email - 사용자 email
      * @return TopicGenerateRequest
      */
-    public String makeAIRequest(String email) {
+    public void makeAIRequest(String email) {
 
         // 1. 유저 정보 조회
         User user = userRepository.findByEmail(email).orElseThrow(
@@ -218,10 +211,35 @@ public class SmallTalkService {
 
         TopicGenerateRequest req = new TopicGenerateRequest(5, activities);
 
-        String topic = getTopic(req);
-        return topic;
+        String rawResponse = getTopic(req);
+
+        // 4. 생성된 주제를 db에 저장
+        // 4-1. 응답에서 ```json, ```을 제거
+        String response = rawResponse.replaceAll("```json", "")
+                .replaceAll("```", "")
+                .trim();
+
+       try {
+           List<AISmallTalkResponse> aiTopics = objectMapper.readValue(response, new TypeReference<List<AISmallTalkResponse>>() {
+           });
+           List<SmalltalkTopic> topics = aiTopics.stream().map(
+                           aiTopic -> SmalltalkTopic.toEntity(aiTopic, user)
+                   )
+                   .collect(Collectors.toList());
+
+           smalltalkTopicRepository.saveAll(topics);
+
+       } catch (Exception e) {
+           throw new RuntimeException("json 파싱 실패");
+       }
+
     }
 
+    /**
+     * 약관 동의 enum과 SourceType enum 을 매핑하는 기능입니다.
+     * @param consent
+     * @return
+     */
     // 약관 동의 enum과 소스 타입 enum을 매핑하는 메소드
     private SourceType mapConsentToSourceType(UserConsent.ConsentType consent) {
         return switch (consent) {
@@ -230,6 +248,27 @@ public class SmallTalkService {
             case BUCKET_PERSONALIZATION -> BUCKET;
             default -> throw new RuntimeException("");
         };
+    }
+
+    /**
+     * AI 에게 스몰토크 주제를 요청하는 기능입니다.
+     * @param req
+     * @return response - AI 가 생성한 스몰토크 주제를 js
+     */
+    private String getTopic(TopicGenerateRequest req) {
+        try {
+            String response = chatClient
+                    .prompt()
+                    .system(SYSTEM_TEMPLATE)
+                    .user(u -> u.text(req.toString()))
+                    .call()
+                    .content();
+
+            return response;
+
+        } catch (Exception e) {
+            throw new RuntimeException("주제 추천 중 오류 발생");
+        }
     }
 
 }
