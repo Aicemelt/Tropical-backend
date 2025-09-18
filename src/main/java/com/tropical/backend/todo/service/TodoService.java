@@ -111,21 +111,18 @@ public class TodoService {
         Todo todo = todoRepository.findByTodoIdAndUserId(todoId, userId)
                 .orElseThrow(() -> new RuntimeException("할 일을 찾을 수 없습니다."));
 
-        // content가 null이 아니고 빈 값이 아닌 경우에만 업데이트
+        // content 업데이트
         if (request.getContent() != null && !request.getContent().trim().isEmpty()) {
             todo.setContent(request.getContent().trim());
             log.info("Content updated for todo {}", todoId);
         }
 
-        // dueDate가 요청에 포함된 경우에만 업데이트 (null 값도 설정 가능)
-        if (request.getDueDate() != null) {
-            todo.setDueDate(request.getDueDate());
-            log.info("Due date updated for todo {}", todoId);
-        }
+        // dueDate는 항상 업데이트 (null 값도 포함)
+        todo.setDueDate(request.getDueDate());
+        log.info("Due date updated for todo {} to {}", todoId, request.getDueDate());
 
-        // 둘 다 업데이트할 내용이 없으면 예외 발생
-        if ((request.getContent() == null || request.getContent().trim().isEmpty()) &&
-                request.getDueDate() == null) {
+        // content가 비어있으면 예외
+        if (request.getContent() == null || request.getContent().trim().isEmpty()) {
             throw new RuntimeException("수정할 내용이 없습니다.");
         }
 
