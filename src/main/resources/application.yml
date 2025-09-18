@@ -13,6 +13,10 @@ spring:
     name: tropical-app  # 애플리케이션 이름
   profiles:
     active: dev  # 활성 프로파일 (dev, prod 등)
+  # JSON 직렬화 설정 (LocalDate 처리용)
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
 
   # spring ai 설정
   # https://api.openai.com/v1 - gpt baseUrl
@@ -167,6 +171,17 @@ cors:
   allowed-headers:
     - "*"  # 허용할 헤더 (모든 헤더 허용)
   allow-credentials: true  # 쿠키 및 인증 헤더 허용
+
+# ===============================
+# 공휴일 API 설정 (한국천문연구원)
+# ===============================
+holiday:
+  api-base: https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService
+  api-key: ${HOLIDAY_API_KEY}
+  connect-timeout-ms: 3000
+  read-timeout-ms: 4000
+  page-no: 1
+  num-of-rows: 100
 
 # ===============================
 # 로깅 설정

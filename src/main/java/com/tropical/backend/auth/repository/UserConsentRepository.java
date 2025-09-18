@@ -14,7 +14,8 @@ import java.util.Optional;
  *
  * <p>
  * 사용자의 필수 동의와 선택 동의 정보를 관리하는 데이터 접근 계층입니다.
- * 온보딩 프로세스, AI 개인화 서비스, GDPR 준수 등을 위한 동의 관리 기능을 제공합니다.
+ * 온보딩 프로세스, AI 개인화 서비스, GDPR 준수 등을 위한 동의 관리 기능을 제공하며,
+ * 약관 버전 추적을 통한 법적 증빙도 지원합니다.
  * </p>
  *
  * <p>주요 기능:</p>
@@ -22,111 +23,131 @@ import java.util.Optional;
  *   <li>온보딩 완료 조건 검증 (필수 동의 확인)</li>
  *   <li>AI 추천 시스템 연동 (선택 동의 기반 개인화)</li>
  *   <li>동의 철회 및 변경 이력 관리</li>
+ *   <li>약관 버전별 동의 추적 및 재동의 관리</li>
  *   <li>개인정보보호법 및 GDPR 준수 지원</li>
  *   <li>동의 현황 통계 및 분석 데이터 제공</li>
  * </ul>
  *
  * @author 왕택준
- * @version 0.1
- * @since 2025.09.13
+ * @version 0.2
+ * @since 2025.09.18
  */
 @Repository
 public interface UserConsentRepository extends JpaRepository<UserConsent, Long> {
 
     /**
-     * 사용자 ID로 모든 동의 정보 조회
+     * 사용자 ID로 활성 사용자의 동의 정보 조회
      *
      * <p>
      * 마이페이지에서 사용자의 전체 동의 현황을 표시할 때 사용됩니다.
-     * 필수 동의와 선택 동의를 모두 포함하여 반환합니다.
+     * 활성 상태(ACTIVE) 사용자의 동의 정보만 반환하며, 탈퇴한 사용자는 제외됩니다.
+     * 법적 증빙용 조회는 별도 메서드를 사용해야 합니다.
      * </p>
      *
      * @param userId 사용자 ID
-     * @return 해당 사용자의 모든 동의 정보 목록, 동의 정보가 없으면 빈 리스트
+     * @return 해당 활성 사용자의 모든 동의 정보 목록, 탈퇴 사용자면 빈 리스트
      */
-    List<UserConsent> findByUserId(Long userId);
+    @Query("SELECT uc FROM UserConsent uc WHERE uc.user.id = :userId AND uc.user.status = 'ACTIVE'")
+    List<UserConsent> findByUserId(@Param("userId") Long userId);
 
     /**
-     * 사용자 ID와 동의 타입으로 특정 동의 정보 조회
+     * 사용자 ID와 동의 타입으로 활성 사용자의 특정 동의 정보 조회
      *
      * <p>
      * 특정 동의 항목의 상태를 확인하거나 업데이트할 때 사용됩니다.
-     * 동의 변경 시 기존 레코드 존재 여부 확인에도 활용됩니다.
+     * 활성 사용자의 동의만 대상으로 하며, 탈퇴한 사용자는 제외됩니다.
      * </p>
      *
      * @param userId      사용자 ID
      * @param consentType 동의 타입 (TERMS_OF_SERVICE, CALENDAR_PERSONALIZATION 등)
-     * @return 해당 동의 정보 Optional, 존재하지 않는 경우 empty
+     * @return 해당 활성 사용자의 동의 정보 Optional, 존재하지 않는 경우 empty
      */
-    Optional<UserConsent> findByUserIdAndConsentType(Long userId, UserConsent.ConsentType consentType);
+    @Query("SELECT uc FROM UserConsent uc WHERE uc.user.id = :userId AND uc.user.status = 'ACTIVE' AND uc.consentType = :consentType")
+    Optional<UserConsent> findByUserIdAndConsentType(@Param("userId") Long userId, @Param("consentType") UserConsent.ConsentType consentType);
+
+    /**
+     * 특정 동의 타입에 동의한 모든 사용자 조회
+     *
+     * <p>
+     * 약관 버전 업데이트 시 재동의가 필요한 사용자를 식별하거나
+     * 특정 동의 항목의 이용 현황을 분석할 때 사용됩니다.
+     * </p>
+     *
+     * @param consentType 조회할 동의 타입
+     * @return 해당 동의에 동의한 사용자들의 동의 정보 목록
+     */
+    List<UserConsent> findByConsentTypeAndAgreedTrue(UserConsent.ConsentType consentType);
 
     /**
      * 사용자의 필수 동의 완료 여부 확인
      *
      * <p>
      * 온보딩 완료 조건을 체크하는 핵심 메서드입니다.
-     * 서비스 이용약관과 일정 기반 추천 동의가 모두 완료되어야 true를 반환합니다.
+     * 서비스 이용약관, 개인정보처리방침, 일정 기반 추천 동의가 모두 완료되어야 true를 반환합니다.
      * 이 조건을 만족하지 않으면 사용자는 홈 화면에 접근할 수 없습니다.
      * </p>
      *
      * @param userId 사용자 ID
-     * @return 필수 동의 2개가 모두 완료되었으면 true, 아니면 false
+     * @return 필수 동의 3개가 모두 완료되었으면 true, 아니면 false
      */
-    @Query("SELECT CASE WHEN COUNT(uc) = 2 THEN true ELSE false END " +
+    @Query("SELECT CASE WHEN COUNT(uc) = 3 THEN true ELSE false END " +
             "FROM UserConsent uc " +
             "WHERE uc.user.id = :userId " +
-            "AND uc.consentType IN ('TERMS_OF_SERVICE', 'CALENDAR_PERSONALIZATION') " +
+            "AND uc.consentType IN ('TERMS_OF_SERVICE', 'PRIVACY_POLICY', 'CALENDAR_PERSONALIZATION') " +
             "AND uc.agreed = true")
     boolean hasAllRequiredConsents(@Param("userId") Long userId);
 
     /**
-     * 사용자의 특정 동의 타입 동의 여부 확인
+     * 활성 사용자의 특정 동의 타입 동의 여부 확인
      *
      * <p>
      * AI 추천 서비스 접근 권한을 확인할 때 사용됩니다.
-     * 예: 일기 기반 추천 기능 사용 전 DIARY_PERSONALIZATION 동의 확인
+     * 활성 사용자만 대상으로 하며, 탈퇴한 사용자는 동의하지 않은 것으로 처리됩니다.
      * </p>
      *
      * @param userId      사용자 ID
      * @param consentType 확인할 동의 타입
-     * @return 해당 동의를 했으면 true, 안했거나 철회했으면 false
+     * @return 활성 사용자가 해당 동의를 했으면 true, 아니면 false
      */
     @Query("SELECT CASE WHEN COUNT(uc) > 0 THEN true ELSE false END " +
             "FROM UserConsent uc " +
-            "WHERE uc.user.id = :userId " +
+            "WHERE uc.user.id = :userId AND uc.user.status = 'ACTIVE' " +
             "AND uc.consentType = :consentType " +
             "AND uc.agreed = true")
     boolean isConsentAgreed(@Param("userId") Long userId,
                             @Param("consentType") UserConsent.ConsentType consentType);
 
     /**
-     * 사용자의 동의한 선택 동의 목록 조회
+     * 활성 사용자의 동의한 선택 동의 목록 조회
      *
      * <p>
      * AI 추천 시스템에서 어떤 데이터 소스를 활용할 수 있는지 확인하기 위해 사용됩니다.
-     * 동의한 항목에 따라 개인화 추천의 범위와 깊이가 결정됩니다.
+     * 활성 사용자만 대상으로 하며, 동의한 항목에 따라 개인화 추천의 범위와 깊이가 결정됩니다.
      * </p>
      *
      * @param userId 사용자 ID
-     * @return 동의한 선택 동의 타입 목록 (DIARY_PERSONALIZATION, TODO_PERSONALIZATION, BUCKET_PERSONALIZATION)
+     * @return 활성 사용자가 동의한 선택 동의 타입 목록
      */
     @Query("SELECT uc.consentType FROM UserConsent uc " +
-            "WHERE uc.user.id = :userId " +
+            "WHERE uc.user.id = :userId AND uc.user.status = 'ACTIVE' " +
             "AND uc.consentType IN ('DIARY_PERSONALIZATION', 'TODO_PERSONALIZATION', 'BUCKET_PERSONALIZATION') " +
             "AND uc.agreed = true")
     List<UserConsent.ConsentType> findAgreedOptionalConsentTypes(@Param("userId") Long userId);
 
     /**
-     * 사용자의 모든 동의 정보 삭제
+     * 법적 증빙용 사용자 동의 정보 조회 (탈퇴 사용자 포함)
      *
      * <p>
-     * 회원 탈퇴 시 해당 사용자의 모든 동의 정보를 삭제합니다.
-     * 개인정보보호법 및 GDPR의 '잊힐 권리' 준수를 위해 사용됩니다.
+     * 법적 분쟁이나 감사 목적으로 사용자의 동의 기록을 조회할 때 사용됩니다.
+     * 사용자 상태와 관계없이 모든 동의 기록을 반환하며, 탈퇴한 사용자의 기록도 포함됩니다.
+     * 일반적인 서비스 로직에서는 사용하지 않고, 관리자 또는 법무팀에서만 사용합니다.
      * </p>
      *
-     * @param userId 삭제할 사용자 ID
+     * @param userId 사용자 ID
+     * @return 해당 사용자의 모든 동의 정보 목록 (사용자 상태 무관)
      */
-    void deleteByUserId(Long userId);
+    @Query("SELECT uc FROM UserConsent uc WHERE uc.user.id = :userId")
+    List<UserConsent> findByUserIdForAudit(@Param("userId") Long userId);
 
     /**
      * 특정 동의 타입의 동의 사용자 수 조회
@@ -157,8 +178,8 @@ public interface UserConsentRepository extends JpaRepository<UserConsent, Long> 
             "WHERE u.status = 'ACTIVE' " +
             "AND (SELECT COUNT(uc) FROM UserConsent uc " +
             "     WHERE uc.user.id = u.id " +
-            "     AND uc.consentType IN ('TERMS_OF_SERVICE', 'CALENDAR_PERSONALIZATION') " +
-            "     AND uc.agreed = true) < 2")
+            "     AND uc.consentType IN ('TERMS_OF_SERVICE', 'PRIVACY_POLICY', 'CALENDAR_PERSONALIZATION') " +
+            "     AND uc.agreed = true) < 3")
     List<Long> findUsersWithIncompleteRequiredConsents();
 
     /**
@@ -193,18 +214,18 @@ public interface UserConsentRepository extends JpaRepository<UserConsent, Long> 
     List<UserConsent> findConsentsUpdatedAfter(@Param("afterDate") java.time.LocalDateTime afterDate);
 
     /**
-     * 사용자별 동의 완성도 조회
+     * 활성 사용자별 동의 완성도 조회
      *
      * <p>
-     * 각 사용자가 총 몇 개의 동의 항목에 동의했는지 조회합니다.
-     * 사용자 참여도나 개인화 서비스 활용도 측정에 사용할 수 있습니다.
+     * 각 활성 사용자가 총 몇 개의 동의 항목에 동의했는지 조회합니다.
+     * 탈퇴한 사용자는 제외하고, 활성 사용자의 참여도나 개인화 서비스 활용도 측정에 사용됩니다.
      * </p>
      *
      * @param userId 사용자 ID
-     * @return 해당 사용자가 동의한 총 항목 수
+     * @return 해당 활성 사용자가 동의한 총 항목 수 (탈퇴 사용자는 0)
      */
     @Query("SELECT COUNT(uc) FROM UserConsent uc " +
-            "WHERE uc.user.id = :userId AND uc.agreed = true")
+            "WHERE uc.user.id = :userId AND uc.user.status = 'ACTIVE' AND uc.agreed = true")
     long countAgreedConsentsByUser(@Param("userId") Long userId);
 
     /**
