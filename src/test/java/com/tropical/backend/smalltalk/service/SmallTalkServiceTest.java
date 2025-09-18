@@ -87,8 +87,8 @@ class SmallTalkServiceTest {
         // 4. 일정 생성
         Schedule testSchedule = Schedule.builder()
                 .user(testUser)
-                .title("테스트 일정")
-                .memo("테스트 일정 메모")
+                .title("뮤지컬 관극")
+                .memo("한복입은남자, 전동석, 카이")
                 .scheduleDate(LocalDate.now())
                 .startTime(LocalTime.of(10, 0))
                 .endTime(LocalTime.of(11, 0))
@@ -100,8 +100,8 @@ class SmallTalkServiceTest {
 
         Schedule testSchedule2 = Schedule.builder()
                 .user(testUser)
-                .title("테스트 일정ddd")
-                .memo("테스트 일정 메모")
+                .title("정보처리기사 실기 시험")
+                .memo("정보처리기사 실기 시험")
                 .scheduleDate(LocalDate.now())
                 .startTime(LocalTime.of(10, 0))
                 .endTime(LocalTime.of(11, 0))
@@ -119,7 +119,7 @@ class SmallTalkServiceTest {
         // 6. todo 생성
         Todo todo = Todo.builder()
                 .user(testUser)
-                .content("귀찮긔윤")
+                .content("백엔드 개발 완료")
                 .dueDate(LocalDate.now())
                 .isCompleted(false)
                 .build();
@@ -129,7 +129,7 @@ class SmallTalkServiceTest {
         // 7. 버킷생성
         BucketList bucket = BucketList.builder()
                 .user(testUser)
-                .content("AI 되기")
+                .content("뉴욕 여행가기")
                 .build();
 
         testUser.getBucketLists().add(bucket);
@@ -137,8 +137,8 @@ class SmallTalkServiceTest {
         // 8. 다이어리 생성
         Diary diary = Diary.builder()
                 .user(testUser)
-                .title("제목")
-                .content("어쩔")
+                .title("힘들다")
+                .content("어제 진짜 알바 너무 힘들었다. 한시간도 앉질 못했어 사람들 왜 이렇게 베라를 좋아함? 아 개빡쳐")
                 .diaryDate(LocalDate.now())
                 .build();
 
@@ -156,7 +156,7 @@ class SmallTalkServiceTest {
         // given
         String email = "testuser@example.com";
         // when
-        TopicGenerateRequest topic = smallTalkService.makeAIRequest(email);
+        String topic = smallTalkService.makeAIRequest(email);
         // then
         System.out.println("topic = " + topic);
     }
@@ -177,9 +177,9 @@ class SmallTalkServiceTest {
                 )
         ));
         // when
-        String topic = smallTalkService.getTopic(dto);
+        // String topic = smallTalkService.getTopic(dto);
         // then
-        System.out.println("topic = " + topic);
+        // System.out.println("topic = " + topic);
     }
     
 }
