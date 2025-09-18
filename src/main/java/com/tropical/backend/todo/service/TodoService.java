@@ -194,18 +194,19 @@ public class TodoService {
     }
 
     /**
-     * 사용자의 미완료 할 일 목록 조회
+     * 사용자의 마감기한이 지나지 않은 미완료 할 일 목록 조회
      *
      * @param userId 사용자 ID
-     * @return 미완료 할 일 목록 (최신순)
+     * @return 마감기한이 지나지 않은 미완료 할 일 목록 (마감일 오름차순)
      */
     public List<TodosResponse> getIncompleteTodos(Long userId) {
-        log.info("Fetching incomplete todos for user: {}", userId);
+        log.info("Fetching non-overdue incomplete todos for user: {}", userId);
 
         User user = userRepository.findByIdAndActive(userId)
                 .orElseThrow(() -> new RuntimeException("활성 사용자를 찾을 수 없습니다."));
 
-        List<Todo> incompleteTodos = todoRepository.findByUserAndIsCompletedFalseOrderByCreatedAtDesc(user);
+        LocalDate today = LocalDate.now();
+        List<Todo> incompleteTodos = todoRepository.findNonOverdueIncompleteTodos(user, today);
 
         return incompleteTodos.stream()
                 .map(this::convertToResponse)

@@ -90,6 +90,24 @@ public interface TodoRepository extends JpaRepository<Todo, Long> {
                                            @Param("endDate") LocalDate endDate);
 
     /**
+     * 사용자의 마감기한이 지나지 않은 미완료 할 일 조회
+     * (마감일이 null이거나 오늘 이후인 미완료 할 일)
+     *
+     * @param user 사용자 엔터티
+     * @param today 오늘 날짜
+     * @return 마감기한이 지나지 않은 미완료 할 일 목록
+     */
+    @Query("SELECT t FROM Todo t WHERE t.user = :user AND t.isCompleted = false " +
+            "AND (t.dueDate IS NULL OR t.dueDate >= :today) " +
+            "ORDER BY " +
+            "CASE WHEN t.dueDate IS NULL THEN 1 ELSE 0 END, " +
+            "t.dueDate ASC, " +
+            "t.createdAt ASC")
+    List<Todo> findNonOverdueIncompleteTodos(@Param("user") User user, @Param("today") LocalDate today);
+
+
+
+    /**
      * 사용자의 할 일 개수 조회
      *
      * @param user 사용자 엔터티
