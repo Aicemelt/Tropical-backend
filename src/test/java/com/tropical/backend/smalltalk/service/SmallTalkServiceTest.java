@@ -59,7 +59,7 @@ class SmallTalkServiceTest {
     EntityManager em;
 
     @BeforeEach
-    void setUp() {
+    /*void setUp() {
         
         User testUser = User.builder()
                 .email("testuser@example.com")
@@ -153,7 +153,10 @@ class SmallTalkServiceTest {
         System.out.println("테스트 유저: " + testUser);
         System.out.println("테스트 일정: " + testSchedule);
         System.out.println("테스트 동의: " + List.of(termsConsent, privacyConsent, calendarConsent, diaryConsent));
-    }
+
+        em.flush();
+        em.clear();
+    }*/
     
     @Test
     @DisplayName("ai 요청 dto 생성 테스트")

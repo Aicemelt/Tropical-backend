@@ -91,11 +91,22 @@ dependencies {
     // --- API 문서화 (OpenAPI/Swagger) ---
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.13' // 최신 안정판
 
+
+
     // --- Dotenv (.env 자동 로딩) ---
     implementation 'me.paulschwarz:spring-dotenv:4.0.0'  // Spring 환경으로 .env 값 주입
 
     // --- Spring AI (Google AI via OpenAI compatible API) ---
-    implementation "org.springframework.ai:spring-ai-openai-spring-boot-starter:${springAiVersion}" // spring AI 사용
+//    implementation "org.springframework.ai:spring-ai-openai-spring-boot-starter:${springAiVersion}" // spring AI 사용
+
+
+    // --- Spring AI (Swagger 의존성 제외) ---
+    implementation("org.springframework.ai:spring-ai-openai-spring-boot-starter:${springAiVersion}") {
+        exclude group: 'io.swagger.core.v3', module: 'swagger-annotations'
+    }
+
+
+
 }
 
 tasks.named('test') {

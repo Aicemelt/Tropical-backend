@@ -53,12 +53,13 @@ public class SmallTalkService {
 
     private final ChatClient chatClient;
 
+    private String USER_PROMPT;
     private static final String SYSTEM_TEMPLATE = """
             ## ROLE & GOAL
             당신은 Tropical 사용자를 위한 스몰토크 주제 추천 AI입니다.
             사용자가 제공한 활동 데이터(SCHEDULE, TODO, DIARY, BUCKET)나 정보가 없으면 일반적 관심사(GENERAL)를 참고하여,\s
             **사용자가 타인과 자연스럽게 나눌 수 있는 대화형 질문 주제를 추천**해야 합니다.
-            대화 주제는 요청한 개수만큼 제공하면 됩니다.
+            대화 주제는 요청한 개수만큼 제공하면 됩니다. 
             
             ## 입력 데이터 형식
             사용자 데이터는 다음 JSON 형식으로 제공됩니다:
@@ -142,11 +143,7 @@ public class SmallTalkService {
                 }
             ]
            """;
-
-
-
-
-
+    
     /**
      * AI 에게 주제 추천을 받을 요청 DTO를 생성하는 메소드 입니다.
      * @param email - 사용자 email
@@ -154,10 +151,7 @@ public class SmallTalkService {
      */
     public void makeAIRequest(String email) {
 
-        // 1. 유저 정보 조회
-        User user = userRepository.findByEmail(email).orElseThrow(
-                () -> new RuntimeException("유저 없음")
-        );
+        User user = getUserByEmail(email);
         Long userId = user.getId();
 
         // 2. 유저 id로 약관동의한 내용 조회
@@ -211,14 +205,10 @@ public class SmallTalkService {
 
         TopicGenerateRequest req = new TopicGenerateRequest(5, activities);
 
-        String rawResponse = getTopic(req);
+        String rawResponse = getTopic(req, userId);
 
         // 4. 생성된 주제를 db에 저장
-        // 4-1. 응답에서 ```json, ```을 제거
-        /*String response = rawResponse.replaceAll("```json", "")
-                .replaceAll("```", "")
-                .trim();
-*/      log.info("AI Raw Response: {}", rawResponse);
+        log.info("AI Raw Response: {}", rawResponse);
 
        try {
            List<AISmallTalkResponse> responses = objectMapper.readValue(rawResponse, new TypeReference<List<AISmallTalkResponse>>() {
@@ -258,20 +248,45 @@ public class SmallTalkService {
      * @param req
      * @return response - AI 가 생성한 스몰토크 주제를 js
      */
-    private String getTopic(TopicGenerateRequest req) {
+    private String getTopic(TopicGenerateRequest req, Long userId) {
+
+        // 1. 사용자가 받은 스몰톡 주제가 있는지 확인
+        List<String> topics = smalltalkTopicRepository.findSmalltalkTopicsByUserId(userId).stream()
+                .map(topic -> topic.getTopicContent())
+                .collect(Collectors.toList());
+
+        USER_PROMPT = "";
+        if(!topics.isEmpty()) {
+            USER_PROMPT = "\n\n이미 추천된 주제는 다음과 같습니다: "
+                    + topics
+                    + "\n이 주제들은 추천하지 않고 새로운 주제로 제시해주세요.";
+        }
+
         try {
             String response = chatClient
                     .prompt()
                     .system(SYSTEM_TEMPLATE)
-                    .user(u -> u.text(req.toString()))
+                    .user(u -> u.text(req.toString() + USER_PROMPT))
                     .call()
                     .content();
+            ;
 
             return response;
 
         } catch (Exception e) {
             throw new RuntimeException("주제 추천 중 오류 발생");
         }
+    }
+
+    /**
+     *
+     * @param email
+     * @return
+     */
+    private User getUserByEmail(String email) {
+        return userRepository.findByEmail(email).orElseThrow(
+                () -> new RuntimeException("유저 없음")
+        );
     }
 
 }

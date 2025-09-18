@@ -25,7 +25,8 @@ public class SmalltalkSources {
     @Column(name = "source_type", nullable = false)
     private SourceType sourceType;
 
-    @Column(name = "source_id", nullable = false)
+    // 주제의 기반이 되는 id, 보편적 주제는 기반이 없기 때문에 sourceId는 null 값을 허용
+    @Column(name = "source_id")
     private Long sourceId;
 
     @CreationTimestamp
