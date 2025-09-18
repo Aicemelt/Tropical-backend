@@ -5,6 +5,7 @@ import com.tropical.backend.schedule.dto.request.ScheduleUpdateRequest;
 import com.tropical.backend.schedule.dto.response.ScheduleResponse;
 import com.tropical.backend.schedule.entity.Schedule;
 import com.tropical.backend.schedule.service.ScheduleService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -22,6 +23,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/schedules")
 @RequiredArgsConstructor
+@Tag(name = "Schedule", description = "일정 API")
 public class ScheduleController {
 
     private final ScheduleService scheduleService;

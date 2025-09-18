@@ -14,6 +14,9 @@ import com.tropical.backend.common.util.CookieUtil;
 import com.tropical.backend.config.auth.JwtAuthenticationFilter;
 import com.tropical.backend.config.auth.JwtTokenProvider;
 import io.jsonwebtoken.Claims;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
@@ -56,9 +59,10 @@ import java.util.Map;
  * @since 2025.09.15
  */
 @RestController
-@RequestMapping("/api/auth")
+@RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor
 @Slf4j
+@Tag(name = "Authentication", description = "인증/회원가입 API")
 public class AuthController {
 
     private final UserService userService;
@@ -86,6 +90,12 @@ public class AuthController {
      * @return 회원가입 결과와 다음 단계 안내
      */
     @PostMapping("/signup")
+    @Operation(
+            summary = "로컬 계정 회원가입",
+            description = "이메일과 비밀번호를 사용하는 로컬 계정을 생성하고 이메일 인증 메일을 발송합니다."
+    )
+    @ApiResponse(responseCode = "200", description = "회원가입 성공 및 이메일 인증 대기")
+    @ApiResponse(responseCode = "400", description = "회원가입 실패 (이메일 중복, 필수 동의 누락 등)")
     @Transactional
     public ResponseEntity<?> signup(@Valid @RequestBody SignupRequest signupRequest) {
         log.info("로컬 계정 회원가입 요청 - 이메일: {}, 닉네임: {}",
@@ -140,7 +150,7 @@ public class AuthController {
 
             // 4) 이메일 인증 토큰 발급 및 발송
             String emailVerifyToken = jwtTokenProvider.createEmailVerifyToken(user.getId(), user.getEmail());
-            String verifyUrl = backendBaseUrl + "/api/auth/verify?token=" + emailVerifyToken;
+            String verifyUrl = backendBaseUrl + "/api/v1/auth/verify?token=" + emailVerifyToken;
             emailService.sendVerificationMail(user.getEmail(), verifyUrl);
 
             // 5) 응답: 로그인 토큰 없이 이메일 인증 단계로 이동
@@ -353,7 +363,7 @@ public class AuthController {
 
             // 인증 메일 재발송
             String emailVerifyToken = jwtTokenProvider.createEmailVerifyToken(user.getId(), user.getEmail());
-            String verifyUrl = backendBaseUrl + "/api/auth/verify?token=" + emailVerifyToken;
+            String verifyUrl = backendBaseUrl + "/api/v1/auth/verify?token=" + emailVerifyToken;
             emailService.sendVerificationMail(user.getEmail(), verifyUrl);
 
             log.info("이메일 인증 메일 재발송 완료 - 사용자 ID: {}", userId);

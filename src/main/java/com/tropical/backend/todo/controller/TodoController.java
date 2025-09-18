@@ -7,6 +7,7 @@ import com.tropical.backend.todo.dto.request.TodosUpdateRequest;
 import com.tropical.backend.todo.dto.request.TodosCompleteRequest;
 import com.tropical.backend.todo.dto.response.TodosResponse;
 import com.tropical.backend.todo.service.TodoService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,6 +36,7 @@ import java.util.List;
 @RequestMapping("/api/todos")
 @RequiredArgsConstructor
 @Slf4j
+@Tag(name = "Todo", description = "할 일 API")
 public class TodoController {
 
     private final TodoService todoService;
