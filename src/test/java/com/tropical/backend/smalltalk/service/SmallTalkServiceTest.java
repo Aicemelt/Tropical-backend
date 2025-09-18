@@ -3,11 +3,16 @@ package com.tropical.backend.smalltalk.service;
 import com.tropical.backend.auth.entity.User;
 import com.tropical.backend.auth.entity.UserConsent;
 import com.tropical.backend.auth.repository.UserRepository;
+import com.tropical.backend.bucketList.entity.BucketList;
 import com.tropical.backend.bucketList.repository.BucketListRepository;
+import com.tropical.backend.diary.entity.Diary;
 import com.tropical.backend.diary.repository.DiaryRepository;
 import com.tropical.backend.schedule.entity.Schedule;
 import com.tropical.backend.schedule.repository.ScheduleRepository;
+import com.tropical.backend.smalltalk.dto.request.ActivityDto;
 import com.tropical.backend.smalltalk.dto.request.TopicGenerateRequest;
+import com.tropical.backend.smalltalk.enums.SourceType;
+import com.tropical.backend.todo.entity.Todo;
 import com.tropical.backend.todo.repository.TodoRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -21,6 +26,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -72,11 +78,13 @@ class SmallTalkServiceTest {
         privacyConsent.setUser(testUser);
         calendarConsent.setUser(testUser);
 
-        // 3. 선택 동의 생성 (원하면 동의 안한 상태로도 가능)
-        UserConsent diaryConsent = UserConsent.createUserConsent(testUser, UserConsent.ConsentType.DIARY_PERSONALIZATION, false);
+        // 3. 선택 동의 생성
+        UserConsent diaryConsent = UserConsent.createUserConsent(testUser, UserConsent.ConsentType.DIARY_PERSONALIZATION, true);
+        UserConsent todoConsent = UserConsent.createUserConsent(testUser, UserConsent.ConsentType.TODO_PERSONALIZATION, true);
+        UserConsent bucketConsent = UserConsent.createUserConsent(testUser, UserConsent.ConsentType.BUCKET_PERSONALIZATION, true);
         diaryConsent.setUser(testUser);
 
-        // 4. 일정 생성 (필수)
+        // 4. 일정 생성
         Schedule testSchedule = Schedule.builder()
                 .user(testUser)
                 .title("테스트 일정")
@@ -108,7 +116,35 @@ class SmallTalkServiceTest {
                 testSchedule, testSchedule2
         ));
 
-        // 6. 확인용 출력
+        // 6. todo 생성
+        Todo todo = Todo.builder()
+                .user(testUser)
+                .content("귀찮긔윤")
+                .dueDate(LocalDate.now())
+                .isCompleted(false)
+                .build();
+
+        testUser.getTodos().add(todo);
+
+        // 7. 버킷생성
+        BucketList bucket = BucketList.builder()
+                .user(testUser)
+                .content("AI 되기")
+                .build();
+
+        testUser.getBucketLists().add(bucket);
+
+        // 8. 다이어리 생성
+        Diary diary = Diary.builder()
+                .user(testUser)
+                .title("제목")
+                .content("어쩔")
+                .diaryDate(LocalDate.now())
+                .build();
+
+        testUser.getDiaries().add(diary);
+
+        // 확인용 출력
         System.out.println("테스트 유저: " + testUser);
         System.out.println("테스트 일정: " + testSchedule);
         System.out.println("테스트 동의: " + List.of(termsConsent, privacyConsent, calendarConsent, diaryConsent));
@@ -120,7 +156,28 @@ class SmallTalkServiceTest {
         // given
         String email = "testuser@example.com";
         // when
-        TopicGenerateRequest topic = smallTalkService.getTopic(email);
+        TopicGenerateRequest topic = smallTalkService.makeAIRequest(email);
+        // then
+        System.out.println("topic = " + topic);
+    }
+
+    @Test
+    @DisplayName("ai 주제 추천 테스트")
+    void aiGetTopic() {
+        // given
+        TopicGenerateRequest dto = new TopicGenerateRequest(5, Map.of(
+                SourceType.BUCKET, List.of(
+                        new ActivityDto(1L, "", "ai 되기", LocalDateTime.now())
+                ),
+                SourceType.TODO, List.of(
+                        new ActivityDto(1L, "", "비타민 먹기", LocalDateTime.now())
+                ),
+                SourceType.SCHEDULE, List.of(
+                        new ActivityDto(1L, "집가기", "집에가고싶다", LocalDateTime.now())
+                )
+        ));
+        // when
+        String topic = smallTalkService.getTopic(dto);
         // then
         System.out.println("topic = " + topic);
     }
