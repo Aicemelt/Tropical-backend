@@ -5,6 +5,7 @@ import com.tropical.backend.diary.dto.request.DiaryUpdateRequest;
 import com.tropical.backend.diary.dto.response.DiaryResponse;
 import com.tropical.backend.diary.entity.Diary;
 import com.tropical.backend.diary.service.DiaryService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -22,6 +23,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/diaries")
 @RequiredArgsConstructor
+@Tag(name = "Diary", description = "일기 API")
 public class DiaryController {
 
     private final DiaryService diaryService;
