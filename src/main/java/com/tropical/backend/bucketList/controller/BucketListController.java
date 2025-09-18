@@ -32,7 +32,7 @@ import java.util.List;
  * @since 2025.09.16
  */
 @RestController
-@RequestMapping("/api/buckets")
+@RequestMapping("/api/v1/buckets")
 @RequiredArgsConstructor
 @Tag(name = "BucketList", description = "버킷리스트 API")
 public class BucketListController {

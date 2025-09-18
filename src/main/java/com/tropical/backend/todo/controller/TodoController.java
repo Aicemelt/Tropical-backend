@@ -33,7 +33,7 @@ import java.util.List;
  * @since 2025.09.16
  */
 @RestController
-@RequestMapping("/api/todos")
+@RequestMapping("/api/v1/todos")
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "Todo", description = "할 일 API")
