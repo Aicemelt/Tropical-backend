@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.*;
  * @since 2025.09.16
  */
 @RestController
-@RequestMapping("/api/schedules")
+@RequestMapping("/api/v1/schedules")
 @RequiredArgsConstructor
 public class ScheduleController {
 

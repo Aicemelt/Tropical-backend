@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.*;
  * @since 2025.09.16
  */
 @RestController
-@RequestMapping("/api/diaries")
+@RequestMapping("/api/v1/diaries")
 @RequiredArgsConstructor
 public class DiaryController {
 
