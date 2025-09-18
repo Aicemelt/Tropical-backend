@@ -32,7 +32,13 @@ public class TermsRequest {
      * 동의 항목 타입
      * <p>어떤 종류의 약관(서비스 이용약관, 개인정보 처리방침 등)인지 구분합니다.</p>
      */
-    @Schema(description = "동의 항목 타입", example = "TERMS_OF_SERVICE")
+    @Schema(description = "동의 항목 타입",
+            example = "termsOfService",
+            allowableValues = {
+            "termsOfService", "privacyPolicy", "calendarPersonalization",
+            "diaryPersonalization", "todoPersonalization", "bucketPersonalization"
+            }
+    )
     @NotNull
     private ConsentType consentType;
 

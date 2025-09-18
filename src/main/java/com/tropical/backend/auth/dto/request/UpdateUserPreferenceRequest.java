@@ -149,7 +149,17 @@ public record UpdateUserPreferenceRequest(
          * 선택 동의 상태 변경
          * <p>AI 개인화 서비스를 위한 선택 동의만 변경 가능합니다. 필수 동의는 포함하면 안 됩니다. null이면 동의 상태 변경 없음</p>
          */
-        @Schema(description = "선택 동의 상태 변경 (DIARY_PERSONALIZATION, TODO_PERSONALIZATION, BUCKET_PERSONALIZATION만 가능)", nullable = true)
+        @Schema(
+                description = "선택 동의 상태 변경 (diaryPersonalization, todoPersonalization, bucketPersonalization만 가능)",
+                example = """
+        {
+          "diaryPersonalization": true,
+          "todoPersonalization": false,
+          "bucketPersonalization": true
+        }
+        """,
+                nullable = true
+        )
         Map<ConsentType, Boolean> optionalConsents
 ) {
 }
