@@ -21,7 +21,7 @@ import org.springframework.web.bind.annotation.*;
  * @since 2025.09.16
  */
 @RestController
-@RequestMapping("/api/schedules")
+@RequestMapping("/api/v1/schedules")
 @RequiredArgsConstructor
 @Tag(name = "Schedule", description = "일정 API")
 public class ScheduleController {

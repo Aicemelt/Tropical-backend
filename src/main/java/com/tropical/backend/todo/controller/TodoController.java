@@ -33,7 +33,7 @@ import java.util.List;
  * @since 2025.09.16
  */
 @RestController
-@RequestMapping("/api/todos")
+@RequestMapping("/api/v1/todos")
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "Todo", description = "할 일 API")
@@ -235,17 +235,17 @@ public class TodoController {
     }
 
     /**
-     * 미완료 할 일 목록 조회
+     * 마감기한이 지나지 않은 미완료 할 일 목록 조회
      *
      * @param userDetails 인증된 사용자 정보
-     * @return 미완료 할 일 목록
+     * @return 마감기한이 지나지 않은 미완료 할 일 목록
      */
     @GetMapping("/incomplete")
     public ResponseEntity<List<TodosResponse>> getIncompleteTodos(
             @AuthenticationPrincipal UserDetails userDetails) {
 
         Long userId = Long.valueOf(userDetails.getUsername());
-        log.info("GET /api/todos/incomplete - Fetching incomplete todos for user: {}", userId);
+        log.info("GET /api/todos/incomplete - Fetching non-overdue incomplete todos for user: {}", userId);
 
         List<TodosResponse> incompleteTodos = todoService.getIncompleteTodos(userId);
 

@@ -111,21 +111,18 @@ public class TodoService {
         Todo todo = todoRepository.findByTodoIdAndUserId(todoId, userId)
                 .orElseThrow(() -> new RuntimeException("할 일을 찾을 수 없습니다."));
 
-        // content가 null이 아니고 빈 값이 아닌 경우에만 업데이트
+        // content 업데이트
         if (request.getContent() != null && !request.getContent().trim().isEmpty()) {
             todo.setContent(request.getContent().trim());
             log.info("Content updated for todo {}", todoId);
         }
 
-        // dueDate가 요청에 포함된 경우에만 업데이트 (null 값도 설정 가능)
-        if (request.getDueDate() != null) {
-            todo.setDueDate(request.getDueDate());
-            log.info("Due date updated for todo {}", todoId);
-        }
+        // dueDate는 항상 업데이트 (null 값도 포함)
+        todo.setDueDate(request.getDueDate());
+        log.info("Due date updated for todo {} to {}", todoId, request.getDueDate());
 
-        // 둘 다 업데이트할 내용이 없으면 예외 발생
-        if ((request.getContent() == null || request.getContent().trim().isEmpty()) &&
-                request.getDueDate() == null) {
+        // content가 비어있으면 예외
+        if (request.getContent() == null || request.getContent().trim().isEmpty()) {
             throw new RuntimeException("수정할 내용이 없습니다.");
         }
 
@@ -197,18 +194,19 @@ public class TodoService {
     }
 
     /**
-     * 사용자의 미완료 할 일 목록 조회
+     * 사용자의 마감기한이 지나지 않은 미완료 할 일 목록 조회
      *
      * @param userId 사용자 ID
-     * @return 미완료 할 일 목록 (최신순)
+     * @return 마감기한이 지나지 않은 미완료 할 일 목록 (마감일 오름차순)
      */
     public List<TodosResponse> getIncompleteTodos(Long userId) {
-        log.info("Fetching incomplete todos for user: {}", userId);
+        log.info("Fetching non-overdue incomplete todos for user: {}", userId);
 
         User user = userRepository.findByIdAndActive(userId)
                 .orElseThrow(() -> new RuntimeException("활성 사용자를 찾을 수 없습니다."));
 
-        List<Todo> incompleteTodos = todoRepository.findByUserAndIsCompletedFalseOrderByCreatedAtDesc(user);
+        LocalDate today = LocalDate.now();
+        List<Todo> incompleteTodos = todoRepository.findNonOverdueIncompleteTodos(user, today);
 
         return incompleteTodos.stream()
                 .map(this::convertToResponse)
