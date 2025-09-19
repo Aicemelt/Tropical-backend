@@ -61,7 +61,7 @@ class SmallTalkServiceTest {
     @BeforeEach
     void setUp() {
         
-        User testUser = User.builder()
+        /* User testUser = User.builder()
                 .email("testuser@example.com")
                 .passwordHash("testpasswordhash")
                 .nickname("테스트유저")
@@ -90,7 +90,7 @@ class SmallTalkServiceTest {
         diaryConsent.setUser(testUser);
 
         // 4. 일정 생성
-        /*Schedule testSchedule = Schedule.builder()
+         Schedule testSchedule = Schedule.builder()
                 .user(testUser)
                 .title("뮤지컬 관극")
                 .memo("한복입은남자, 전동석, 카이")
@@ -116,9 +116,22 @@ class SmallTalkServiceTest {
                 .updatedAt(LocalDateTime.now())
                 .build();
 
+        Schedule testSchedule3 = Schedule.builder()
+                .user(testUser)
+                .title("도쿄 여행")
+                .memo("친구랑 도쿄 여행감")
+                .scheduleDate(LocalDate.now())
+                .startTime(LocalTime.of(10, 0))
+                .endTime(LocalTime.of(11, 0))
+                .location("테스트 장소")
+                .isCompleted(false)
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build();
+
         // 5. 유저에 일정 연결
         testUser.getSchedules().addAll(List.of(
-                testSchedule, testSchedule2
+                testSchedule, testSchedule2, testSchedule3
         ));
 
         // 6. todo 생성
@@ -152,10 +165,10 @@ class SmallTalkServiceTest {
         // 확인용 출력
         System.out.println("테스트 유저: " + testUser);
         System.out.println("테스트 일정: " + testSchedule);
-        System.out.println("테스트 동의: " + List.of(termsConsent, privacyConsent, calendarConsent, diaryConsent));*/
+        System.out.println("테스트 동의: " + List.of(termsConsent, privacyConsent, calendarConsent, diaryConsent));
 
         em.flush();
-        em.clear();
+        em.clear();*/
     }
     
     @Test
@@ -198,7 +211,7 @@ class SmallTalkServiceTest {
         // given
         String email = "testuser@example.com";
         // when
-        smallTalkService.makeAIRequest(email);
+         smallTalkService.generateSmallTalk(email);
         // then
     }
     

@@ -1,5 +1,6 @@
 package com.tropical.backend.smalltalk.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tropical.backend.auth.entity.User;
@@ -22,11 +23,14 @@ import lombok.Builder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.prompt.ChatOptions;
+import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -131,15 +135,139 @@ public class SmallTalkService {
                   }
               ]
            """;
-    
+
+    public void generateSmallTalk(String email) {
+        // 1. 유저 검색
+        User user = getUserByEmail(email);
+        Long userId = user.getId();
+
+        // 2. AI 요청
+        // 2-1. 사용자가 받아온 스몰토크 주제가 있는지 확인
+        List<SmalltalkTopic> topics = smalltalkTopicRepository.findSmalltalkTopicsByUserId(userId);
+        List<String> contents = topics.stream()
+                .map(topic -> topic.getTopicContent())
+                .collect(Collectors.toList());
+
+
+        // 2-2. 주제가 있으면 추가 프롬프트 작성, 가져올 주제 개수를 15개로 지정
+        USER_PROMPT = "";
+
+        // db에 생성된 주제가 없으면 기본 5개
+        int topicCount = topics.isEmpty() ? 5 : 10;
+
+        if(!topics.isEmpty()) {
+            USER_PROMPT = "\n\n이미 추천된 주제는 다음과 같습니다: " + contents +
+                    "\n위 주제와 의미적, 주제적으로 다른 새로운 주제를 제시해주세요. " +
+                    "다양한 카테고리(일상, 취미, 창의적 질문, 생각거리 등)에서 고르게 추천하고, 기존 주제와의 중복을 최소화하세요." +
+                    "\n각 주제는 독특한 관점(예: 상상력 기반 질문, 최근 트렌드, 문화적 맥락)에서 생성하고, 한국어 사용자에게 자연스럽고 흥미로운 대화 주제로 적합해야 합니다.";
+        }
+
+        // 3. AI 주제 추천 요청
+        // 3-1. AI 에게 요청할  사용자 활동 dto 생성
+        TopicGenerateRequest topicGenerateRequest = makeAIRequestDto(user, topicCount);
+
+        // 3-1. AI 주제 추천 생성
+        String raw = getTopic(topicGenerateRequest);
+        log.info("AI 주제 생성 완료: {}", raw);
+
+        // 4. db 저장
+        // 4-1. Json 응답 파싱
+        List<AISmallTalkResponse> responses;
+
+        try {
+            responses = objectMapper.readValue(raw, new TypeReference<List<AISmallTalkResponse>>() {});
+
+        } catch (JsonProcessingException e) {
+            log.error("AI 응답 JSON 파싱 실패: {}", raw, e);
+            throw new RuntimeException("Json 파싱 실패", e);
+        }
+
+        // 4-2. topics가 빈 배열일 경우 바로 db 저장
+        if(topics.isEmpty()) {
+            List<SmalltalkTopic>  smallTalks = responses.stream()
+                    .map(response -> {
+                        try {
+
+                            String embedding = objectMapper.writeValueAsString(response.embedding());
+                            return SmalltalkTopic.toEntity(response, user, embedding);
+
+                        } catch (JsonProcessingException e) {
+                            log.error("임베딩 직렬화 실패", e);
+                            throw new RuntimeException("임베딩 직렬화 실패");
+                        }
+                    })
+                    .collect(Collectors.toList());
+
+            smalltalkTopicRepository.saveAll(smallTalks);
+            return;
+        }
+
+        // 4-3. 응답 유사도 확인
+        // 유사도 판단 기준 점수
+        double threshold = topics.size() < 10 ? 0.9 : 0.85;
+        int maxSaveCount = 5;
+        List<SmalltalkTopic> newTopics = new ArrayList<>();
+
+        for(AISmallTalkResponse response : responses) {
+
+            if(newTopics.size() >= maxSaveCount) break;
+
+            // AI 응답 주제 embedding
+            double[] newEmbedding = response.embedding().stream()
+                    .mapToDouble(Double::doubleValue)
+                    .toArray();
+
+            boolean isSimilar = false;
+
+            for(SmalltalkTopic topic : topics) {
+                try {
+                    // 저장된 db 주제 embedding 가져오기
+                    List<Double> storedList = objectMapper.readValue(topic.getEmbedding(), new TypeReference<List<Double>>() {});
+                    double[] storedEmbedding = storedList.stream().mapToDouble(Double::doubleValue).toArray();
+
+                    double sim = cosineSimilarity(newEmbedding, storedEmbedding);
+
+                    // 코사인 유사도 계산
+                    if(sim >= threshold) {
+                        isSimilar = true;
+                        log.info("유사한 주제 발견 - 저장 안함: {} (유사도: {:.3f})", response.topicContent(), sim);
+                        break;
+                    }
+
+                } catch (JsonProcessingException e) {
+                    log.error("임베딩 파싱 실패", e);
+                    throw new RuntimeException(e);
+                }
+            }
+
+            // 유사도 검사를 통과한 response를 저장
+            if(!isSimilar) {
+                try {
+                    String embedding = objectMapper.writeValueAsString(response.embedding());
+                    newTopics.add(SmalltalkTopic.toEntity(response, user, embedding));
+
+                } catch (JsonProcessingException e) {
+                    log.error("임베딩 직렬화 실패", e);
+                    throw new RuntimeException("임베딩 직렬화 실패");
+                }
+            }
+
+        }
+
+        if (!newTopics.isEmpty()) {
+            smalltalkTopicRepository.saveAll(newTopics);
+        }
+
+    }
+
     /**
      * AI 에게 주제 추천을 받을 요청 DTO를 생성하는 메소드 입니다.
-     * @param email - 사용자 email
+     * @param user
      * @return TopicGenerateRequest
      */
-    public void makeAIRequest(String email) {
+    private TopicGenerateRequest makeAIRequestDto(User user, int count) {
 
-        User user = getUserByEmail(email);
+        // 1. 유저 id 획득
         Long userId = user.getId();
 
         // 2. 유저 id로 약관동의한 내용 조회
@@ -191,37 +319,7 @@ public class SmallTalkService {
             }
         });
 
-        TopicGenerateRequest req = new TopicGenerateRequest(5, activities);
-
-        String rawResponse = getTopic(req, userId);
-
-        // 4. 생성된 주제를 db에 저장
-        log.info("AI Raw Response: {}", rawResponse);
-
-       try {
-           List<AISmallTalkResponse> responses = objectMapper.readValue(rawResponse, new TypeReference<List<AISmallTalkResponse>>() {
-           });
-
-           log.info("json parse log: {}", responses);
-           List<SmalltalkTopic> topics = responses.stream().map(
-                           aiTopic ->{
-                               String embedding;
-                               try {
-                                   embedding = objectMapper.writeValueAsString(aiTopic.embedding());
-                               } catch (Exception e) {
-                                   throw new RuntimeException("embedding json 변환 실패");
-                               }
-                               return SmalltalkTopic.toEntity(aiTopic, user, embedding);
-                           }
-
-                   )
-                   .collect(Collectors.toList());
-
-           smalltalkTopicRepository.saveAll(topics);
-
-       } catch (Exception e) {
-           throw new RuntimeException("json 파싱 실패");
-       }
+        return new TopicGenerateRequest(count, activities);
 
     }
 
@@ -245,19 +343,7 @@ public class SmallTalkService {
      * @param req
      * @return response - AI 가 생성한 스몰토크 주제를 js
      */
-    private String getTopic(TopicGenerateRequest req, Long userId) {
-
-        // 1. 사용자가 받은 스몰톡 주제가 있는지 확인
-        List<String> topics = smalltalkTopicRepository.findSmalltalkTopicsByUserId(userId).stream()
-                .map(topic -> topic.getTopicContent())
-                .collect(Collectors.toList());
-
-        USER_PROMPT = "";
-        if(!topics.isEmpty()) {
-            USER_PROMPT = "\n\n이미 추천된 주제는 다음과 같습니다: "
-                    + topics
-                    + "\n위의 주제와 동일하거나 비슷한(유사, 확장된 형태 포함) 주제를 제외하고, 완전히 새로운 주제만 제시해주세요.";
-        }
+    private String getTopic(TopicGenerateRequest req) {
 
         try {
             String response = chatClient
@@ -266,7 +352,6 @@ public class SmallTalkService {
                     .user(u -> u.text(req.toString() + USER_PROMPT))
                     .call()
                     .content();
-            ;
 
             return response;
 
@@ -284,6 +369,37 @@ public class SmallTalkService {
         return userRepository.findByEmail(email).orElseThrow(
                 () -> new RuntimeException("유저 없음")
         );
+    }
+
+
+    /**
+     * db에 저장된 AI 추천 주제와 새롭게 생성된 주제의 유사도를 검사하는 메소드입니다.
+     * @param vectorA
+     * @param vectorB
+     * @return
+     */
+    private double cosineSimilarity(double[] vectorA, double[] vectorB) {
+        if (vectorA == null || vectorB == null) {
+            throw new IllegalArgumentException("Vectors cannot be null");
+        }
+        if (vectorA.length != vectorB.length) {
+            throw new IllegalArgumentException("Vectors must have the same length");
+        }
+
+        double dotProduct = 0.0;
+        double normA = 0.0;
+        double normB = 0.0;
+        for (int i = 0; i < vectorA.length; i++) {
+            dotProduct += vectorA[i] * vectorB[i];
+            normA += vectorA[i] * vectorA[i];
+            normB += vectorB[i] * vectorB[i];
+        }
+
+        double denominator = Math.sqrt(normA) * Math.sqrt(normB);
+        if (denominator == 0.0) {
+            return 0.0; // 제로 벡터 처리
+        }
+        return dotProduct / denominator;
     }
 
 }
