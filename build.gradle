@@ -97,15 +97,16 @@ dependencies {
     implementation 'me.paulschwarz:spring-dotenv:4.0.0'  // Spring 환경으로 .env 값 주입
 
     // --- Spring AI (Google AI via OpenAI compatible API) ---
-//    implementation "org.springframework.ai:spring-ai-openai-spring-boot-starter:${springAiVersion}" // spring AI 사용
-
+    // implementation "org.springframework.ai:spring-ai-openai-spring-boot-starter:${springAiVersion}" // spring AI 사용
 
     // --- Spring AI (Swagger 의존성 제외) ---
     implementation("org.springframework.ai:spring-ai-openai-spring-boot-starter:${springAiVersion}") {
         exclude group: 'io.swagger.core.v3', module: 'swagger-annotations'
     }
 
-
+    // --- OpenAI Embedding API ---
+    implementation 'com.theokanning.openai-gpt3-java:client:0.10.0'
+    implementation 'org.springframework.boot:spring-boot-starter-webflux' // WebClient 사용
 
 }
 

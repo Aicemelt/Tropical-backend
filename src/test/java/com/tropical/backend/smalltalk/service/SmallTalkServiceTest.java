@@ -59,7 +59,7 @@ class SmallTalkServiceTest {
     EntityManager em;
 
     @BeforeEach
-    /*void setUp() {
+    void setUp() {
         
         User testUser = User.builder()
                 .email("testuser@example.com")
@@ -90,7 +90,7 @@ class SmallTalkServiceTest {
         diaryConsent.setUser(testUser);
 
         // 4. 일정 생성
-        Schedule testSchedule = Schedule.builder()
+        /*Schedule testSchedule = Schedule.builder()
                 .user(testUser)
                 .title("뮤지컬 관극")
                 .memo("한복입은남자, 전동석, 카이")
@@ -152,11 +152,11 @@ class SmallTalkServiceTest {
         // 확인용 출력
         System.out.println("테스트 유저: " + testUser);
         System.out.println("테스트 일정: " + testSchedule);
-        System.out.println("테스트 동의: " + List.of(termsConsent, privacyConsent, calendarConsent, diaryConsent));
+        System.out.println("테스트 동의: " + List.of(termsConsent, privacyConsent, calendarConsent, diaryConsent));*/
 
         em.flush();
         em.clear();
-    }*/
+    }
     
     @Test
     @DisplayName("ai 요청 dto 생성 테스트")
