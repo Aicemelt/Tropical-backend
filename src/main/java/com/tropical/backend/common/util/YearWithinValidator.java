@@ -1,5 +1,6 @@
 package com.tropical.backend.common.util;
 
+import com.tropical.backend.config.TimeConfig;
 import jakarta.validation.ConstraintValidator;
 import jakarta.validation.ConstraintValidatorContext;
 import lombok.RequiredArgsConstructor;
@@ -29,9 +30,9 @@ import java.time.Year;
  *   <li>테스트 환경에서 시각 고정 가능</li>
  * </ul>
  *
- * @author  왕택준
+ * @author 왕택준
  * @version 0.1
- * @since   2025.09.17
+ * @since 2025.09.17
  */
 @Component
 @RequiredArgsConstructor
@@ -40,7 +41,6 @@ public class YearWithinValidator implements ConstraintValidator<YearWithin, Inte
     private final Clock clock; // TimeConfig에서 주입 (현재 연도 계산용)
 
     private int min;         // 최소 연도 (어노테이션 속성)
-    private int aheadYears;  // 현재 연도로부터 허용할 추가 연도 범위
 
     /**
      * 어노테이션 속성 초기화.
@@ -50,7 +50,6 @@ public class YearWithinValidator implements ConstraintValidator<YearWithin, Inte
     @Override
     public void initialize(YearWithin ann) {
         this.min = ann.min();
-        this.aheadYears = ann.aheadYears();
     }
 
     /**
@@ -58,7 +57,7 @@ public class YearWithinValidator implements ConstraintValidator<YearWithin, Inte
      *
      * <p>
      * - 값이 null인 경우 true (검증 통과)<br>
-     *   → null 허용 여부는 @NotNull 조합으로 별도 처리<br>
+     * → null 허용 여부는 @NotNull 조합으로 별도 처리<br>
      * - 값이 min 이상, (현재연도+aheadYears) 이하인지 확인<br>
      * </p>
      *
@@ -68,8 +67,9 @@ public class YearWithinValidator implements ConstraintValidator<YearWithin, Inte
      */
     @Override
     public boolean isValid(Integer value, ConstraintValidatorContext context) {
-        if (value == null) return true; // null은 허용, 별도 제약 필요 시 @NotNull 사용
-        int max = Year.now(clock).getValue() + aheadYears;
+        if (value == null) return true;
+        // 어노테이션 속성 대신 TimeConfig 상수 직접 사용
+        int max = Year.now(clock).getValue() + TimeConfig.HOLIDAY_AHEAD_YEARS;
         return value >= min && value <= max;
     }
 }
