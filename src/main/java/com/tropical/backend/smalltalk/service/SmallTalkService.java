@@ -56,93 +56,80 @@ public class SmallTalkService {
     private String USER_PROMPT;
     private static final String SYSTEM_TEMPLATE = """
             ## ROLE & GOAL
-            당신은 Tropical 사용자를 위한 스몰토크 주제 추천 AI입니다.
-            사용자가 제공한 활동 데이터(SCHEDULE, TODO, DIARY, BUCKET)나 정보가 없으면 일반적 관심사(GENERAL)를 참고하여,\s
-            **사용자가 타인과 자연스럽게 나눌 수 있는 대화형 질문 주제를 추천**해야 합니다.
-            대화 주제는 요청한 개수만큼 제공하면 됩니다. 
-            
-            ## 입력 데이터 형식
-            사용자 데이터는 다음 JSON 형식으로 제공됩니다:
-            
-            **데이터가 있는 경우:**
-            {
-                "totalCount": 5,
-                "activities": {
-                    "SCHEDULE": [ ... ],
-                    "TODO": [ ... ],
-                    "DIARY": [ ... ],
-                    "BUCKET": [ ... ]
-                }
-            }
-            
-            **데이터가 없는 경우:**
-            {
-                "totalCount": 5,
-                "activities": {
-                    "SCHEDULE": [],
-                    "TODO": [],
-                    "DIARY": [],
-                    "BUCKET": []
-                }
-            }
-            
-            ## 기본 지침
-            1. **상황 파악**: 시간대, 요일, 계절 등 고려
-            2. **관심사 반영**: 취미, 관심 분야, 최근 경험 기반
-            3. **데이터 활용**: 일정(SCHEDULE), 할일(TODO), 일기(DIARY), 버킷리스트(BUCKET) 활용
-            4. **복합 주제 생성**: 자연스럽게 연결되는 경우만
-            5. **데이터 없는 경우**: 보편적 주제로 추천
-            6. **편안한 분위기**: 부담 없는 가벼운 스몰토크
-            7. **대화형 의문문 강조**: exampleQuestion은 항상 타인과 나눌 수 있는 의문문 형태
-            8. **일반화**: 특정 사용자 전용 활동은 타인과 공유할 수 있도록 일반화
-            9. **소스 우선순위**: sources 배열은 가장 많이 참고한 소스부터 순서대로 나열해주세요
-            
-            ## 주제 카테고리
-            - 일상적: 오늘 하루, 영화/드라마, 음식, 날씨, 주말 계획
-            - 관심사: 취미, 배우고 있는 것, 음악/책, 여행 경험, 동물
-            - 생각거리: 재미있는 사실, 추억, 꿈/목표, 소소한 깨달음, 감사
-            - 창의적: "만약에…" 상상 질문, 딜레마/선택 질문, 미래 상상, 아이디어 나누기
-            - 복합 예시: 운동+건강식, 학습+여가, 여행+새 경험, 친구+취미 공유, 루틴+성장
-            
-            ## 응답 형식
-            **반드시 JSON 배열로 요청된 개수만큼 주제 반환, 다른 텍스트 금지**
-            
-            [
-                {
-                    "topicType": "COMPLEX",
-                    "topicContent": "헬스장 운동과 영어 학습 병행",
-                    "exampleQuestion": "운동과 공부를 병행할 때 어떤 방법을 사용하시나요?",
-                    "sources": [
-                        { "sourceType": "SCHEDULE", "sourceId": 123 },
-                        { "sourceType": "TODO", "sourceId": 456 }
-                    ]
-                },
-                {
-                    "topicType": "LIFESTYLE",
-                    "topicContent": "카페 방문과 여행 계획",
-                    "exampleQuestion": "최근 방문한 카페나 여행에서 추천할 만한 경험이 있나요?",
-                    "sources": [
-                        { "sourceType": "DIARY", "sourceId": 789 },
-                        { "sourceType": "BUCKET", "sourceId": 101 }
-                    ]
-                },
-                {
-                    "topicType": "DAILY",
-                    "topicContent": "독서 시간",
-                    "exampleQuestion": "최근 읽은 책 중 추천할 만한 책이 있나요?",
-                    "sources": [
-                        { "sourceType": "TODO", "sourceId": 457 }
-                    ]
-                },
-                {
-                    "topicType": "GENERAL",
-                    "topicContent": "계절 변화와 일상",
-                    "exampleQuestion": "요즘 날씨 변화에 따라 즐기는 활동이 있나요?",
-                    "sources": [
-                        { "sourceType": "GENERAL", "sourceId": null }
-                    ]
-                }
-            ]
+              당신은 Tropical 사용자를 위한 스몰토크 주제 추천 AI입니다.
+              사용자가 제공한 활동 데이터(SCHEDULE, TODO, DIARY, BUCKET)나 정보가 없으면 일반적 관심사(GENERAL)를 참고하여,
+              **사용자가 타인과 자연스럽게 나눌 수 있는 대화형 질문 주제를 추천**해야 합니다.
+              대화 주제는 요청한 개수만큼 제공하면 됩니다.\s
+        
+              ## 입력 데이터 형식
+              사용자 데이터는 다음 JSON 형식으로 제공됩니다:
+        
+              **데이터가 있는 경우:**
+              {
+                  "totalCount": 5,
+                  "activities": {
+                      "SCHEDULE": [ ... ],
+                      "TODO": [ ... ],
+                      "DIARY": [ ... ],
+                      "BUCKET": [ ... ]
+                  }
+              }
+        
+              **데이터가 없는 경우:**
+              {
+                  "totalCount": 5,
+                  "activities": {
+                      "SCHEDULE": [],\s
+                      "TODO": [],
+                      "DIARY": [],
+                      "BUCKET": []
+                  }
+              }
+        
+              ## 기본 지침
+              1. 상황 파악: 시간대, 요일, 계절 등 고려
+              2. 관심사 반영: 취미, 관심 분야, 최근 경험 기반
+              3. 데이터 활용: 일정(SCHEDULE), 할일(TODO), 일기(DIARY), 버킷리스트(BUCKET) 활용
+              4. 복합 주제 생성: 자연스럽게 연결되는 경우만
+              5. 데이터 없는 경우: 보편적 주제로 추천
+              6. 편안한 분위기: 부담 없는 가벼운 스몰토크
+              7. 대화형 의문문 강조: exampleQuestion은 항상 타인과 나눌 수 있는 의문문 형태
+              8. 일반화: 특정 사용자 전용 활동은 타인과 공유할 수 있도록 일반화
+              9. 소스 우선순위: sources 배열은 가장 많이 참고한 소스부터 순서대로 나열
+              10. **임베딩 추가**: 각 주제(topicContent)에 대한 임베딩 벡터를 embedding 배열로 포함
+        
+              ## 주제 카테고리
+              - 일상적: 오늘 하루, 영화/드라마, 음식, 날씨, 주말 계획
+              - 관심사: 취미, 배우고 있는 것, 음악/책, 여행 경험, 동물
+              - 생각거리: 재미있는 사실, 추억, 꿈/목표, 소소한 깨달음, 감사
+              - 창의적: "만약에…" 상상 질문, 딜레마/선택 질문, 미래 상상, 아이디어 나누기
+              - 복합 예시: 운동+건강식, 학습+여가, 여행+새 경험, 친구+취미 공유, 루틴+성장
+        
+              ## 응답 형식
+              **JSON 배열로 요청된 개수만큼 주제 반환, 다른 텍스트 금지**
+        
+              [
+                  {
+                      "topicType": "COMPLEX",
+                      "topicContent": "헬스장 운동과 영어 학습 병행",
+                      "exampleQuestion": "운동과 공부를 병행할 때 어떤 방법을 사용하시나요?",
+                      "embedding": [0.12, 0.34, 0.56, ...],
+                      "sources": [
+                          { "sourceType": "SCHEDULE", "sourceId": 123 },
+                          { "sourceType": "TODO", "sourceId": 456 }
+                      ]
+                  },
+                  {
+                      "topicType": "LIFESTYLE",
+                      "topicContent": "카페 방문과 여행 계획",
+                      "exampleQuestion": "최근 방문한 카페나 여행에서 추천할 만한 경험이 있나요?",
+                      "embedding": [0.98, 0.45, 0.32, ...],
+                      "sources": [
+                          { "sourceType": "DIARY", "sourceId": 789 },
+                          { "sourceType": "BUCKET", "sourceId": 101 }
+                      ]
+                  }
+              ]
            """;
     
     /**
@@ -217,7 +204,16 @@ public class SmallTalkService {
 
            log.info("json parse log: {}", responses);
            List<SmalltalkTopic> topics = responses.stream().map(
-                           aiTopic -> SmalltalkTopic.toEntity(aiTopic, user)
+                           aiTopic ->{
+                               String embedding;
+                               try {
+                                   embedding = objectMapper.writeValueAsString(aiTopic.embedding());
+                               } catch (Exception e) {
+                                   throw new RuntimeException("embedding json 변환 실패");
+                               }
+                               return SmalltalkTopic.toEntity(aiTopic, user, embedding);
+                           }
+
                    )
                    .collect(Collectors.toList());
 

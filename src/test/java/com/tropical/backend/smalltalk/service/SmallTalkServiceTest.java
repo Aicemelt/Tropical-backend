@@ -164,9 +164,9 @@ class SmallTalkServiceTest {
         // given
         String email = "testuser@example.com";
         // when
-        smallTalkService.makeAIRequest(email);
-        em.flush();
-        em.clear();
+        // smallTalkService.makeAIRequest(email);
+        // em.flush();
+        // em.clear();
         // then
         // System.out.println("topic = " + topic);
     }
@@ -190,6 +190,16 @@ class SmallTalkServiceTest {
         // String topic = smallTalkService.getTopic(dto);
         // then
         // System.out.println("topic = " + topic);
+    }
+
+    @Test
+    @DisplayName("ai 주제 생성 통합 테스트")
+    void aiGenerateTopicTest() {
+        // given
+        String email = "testuser@example.com";
+        // when
+        smallTalkService.makeAIRequest(email);
+        // then
     }
     
 }

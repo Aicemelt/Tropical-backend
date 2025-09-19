@@ -24,6 +24,8 @@ public class QSmalltalkTopic extends EntityPathBase<SmalltalkTopic> {
 
     public final DateTimePath<java.time.LocalDateTime> createdAt = createDateTime("createdAt", java.time.LocalDateTime.class);
 
+    public final StringPath embedding = createString("embedding");
+
     public final StringPath exampleQuestion = createString("exampleQuestion");
 
     public final NumberPath<Long> id = createNumber("id", Long.class);
