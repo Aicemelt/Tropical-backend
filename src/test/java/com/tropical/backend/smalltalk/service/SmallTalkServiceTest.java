@@ -19,8 +19,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.mail.MailSenderAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.annotation.Rollback;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.swing.text.html.parser.Entity;
@@ -32,7 +34,9 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@SpringBootTest
+@SpringBootTest(properties = {
+        "spring.mail.host=localhost"  // 간단한 더미값만
+})
 @Transactional
 @Rollback(value = false)
 class SmallTalkServiceTest {
@@ -61,7 +65,7 @@ class SmallTalkServiceTest {
     @BeforeEach
     void setUp() {
         
-        /* User testUser = User.builder()
+         /*User testUser = User.builder()
                 .email("testuser@example.com")
                 .passwordHash("testpasswordhash")
                 .nickname("테스트유저")

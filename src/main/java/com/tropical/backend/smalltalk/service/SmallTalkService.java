@@ -8,7 +8,6 @@ import com.tropical.backend.auth.entity.UserConsent;
 import com.tropical.backend.auth.repository.UserConsentRepository;
 import com.tropical.backend.auth.repository.UserRepository;
 import com.tropical.backend.bucketList.repository.BucketListRepository;
-import com.tropical.backend.diary.entity.Diary;
 import com.tropical.backend.diary.repository.DiaryRepository;
 import com.tropical.backend.schedule.entity.Schedule;
 import com.tropical.backend.schedule.repository.ScheduleRepository;
@@ -19,23 +18,18 @@ import com.tropical.backend.smalltalk.entity.SmalltalkTopic;
 import com.tropical.backend.smalltalk.enums.SourceType;
 import com.tropical.backend.smalltalk.repository.SmalltalkTopicRepository;
 import com.tropical.backend.todo.repository.TodoRepository;
-import lombok.Builder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.prompt.ChatOptions;
-import org.springframework.ai.openai.OpenAiChatOptions;
-import org.springframework.data.repository.query.Param;
+import org.springframework.ai.embedding.Embedding;
+import org.springframework.ai.embedding.EmbeddingModel;
+import org.springframework.ai.embedding.EmbeddingResponse;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Supplier;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static com.tropical.backend.smalltalk.enums.SourceType.*;
@@ -56,8 +50,9 @@ public class SmallTalkService {
     private final ObjectMapper objectMapper;
 
     private final ChatClient chatClient;
+    private final EmbeddingModel embeddingModel;
 
-    private String USER_PROMPT;
+
     private static final String SYSTEM_TEMPLATE = """
             ## ROLE & GOAL
               당신은 Tropical 사용자를 위한 스몰토크 주제 추천 AI입니다.
@@ -100,7 +95,6 @@ public class SmallTalkService {
               7. 대화형 의문문 강조: exampleQuestion은 항상 타인과 나눌 수 있는 의문문 형태
               8. 일반화: 특정 사용자 전용 활동은 타인과 공유할 수 있도록 일반화
               9. 소스 우선순위: sources 배열은 가장 많이 참고한 소스부터 순서대로 나열
-              10. **임베딩 추가**: 각 주제(topicContent)에 대한 임베딩 벡터를 embedding 배열로 포함
         
               ## 주제 카테고리
               - 일상적: 오늘 하루, 영화/드라마, 음식, 날씨, 주말 계획
@@ -117,7 +111,6 @@ public class SmallTalkService {
                       "topicType": "COMPLEX",
                       "topicContent": "헬스장 운동과 영어 학습 병행",
                       "exampleQuestion": "운동과 공부를 병행할 때 어떤 방법을 사용하시나요?",
-                      "embedding": [0.12, 0.34, 0.56, ...],
                       "sources": [
                           { "sourceType": "SCHEDULE", "sourceId": 123 },
                           { "sourceType": "TODO", "sourceId": 456 }
@@ -127,7 +120,6 @@ public class SmallTalkService {
                       "topicType": "LIFESTYLE",
                       "topicContent": "카페 방문과 여행 계획",
                       "exampleQuestion": "최근 방문한 카페나 여행에서 추천할 만한 경험이 있나요?",
-                      "embedding": [0.98, 0.45, 0.32, ...],
                       "sources": [
                           { "sourceType": "DIARY", "sourceId": 789 },
                           { "sourceType": "BUCKET", "sourceId": 101 }
@@ -150,24 +142,22 @@ public class SmallTalkService {
 
 
         // 2-2. 주제가 있으면 추가 프롬프트 작성, 가져올 주제 개수를 15개로 지정
-        USER_PROMPT = "";
+        // db에 생성된 주제가 없으면 기본 5개 있으면
+        int topicCount = topics.isEmpty() ? 5 : 15;
 
-        // db에 생성된 주제가 없으면 기본 5개
-        int topicCount = topics.isEmpty() ? 5 : 10;
-
-        if(!topics.isEmpty()) {
-            USER_PROMPT = "\n\n이미 추천된 주제는 다음과 같습니다: " + contents +
-                    "\n위 주제와 의미적, 주제적으로 다른 새로운 주제를 제시해주세요. " +
-                    "다양한 카테고리(일상, 취미, 창의적 질문, 생각거리 등)에서 고르게 추천하고, 기존 주제와의 중복을 최소화하세요." +
-                    "\n각 주제는 독특한 관점(예: 상상력 기반 질문, 최근 트렌드, 문화적 맥락)에서 생성하고, 한국어 사용자에게 자연스럽고 흥미로운 대화 주제로 적합해야 합니다.";
-        }
+        // db에 생성된 주제가 있는경우 추가 프롬프트 작성
+        String userPrompt = topics.isEmpty() ? "" :
+                "\n\n이미 추천된 주제는 다음과 같습니다: " + contents +
+                        "\n위 주제와 의미적, 주제적으로 다른 새로운 주제를 제시해주세요. " +
+                        "다양한 카테고리(일상, 취미, 창의적 질문, 생각거리 등)에서 고르게 추천하고, 기존 주제와의 중복을 최소화하세요." +
+                        "\n각 주제는 독특한 관점(예: 상상력 기반 질문, 최근 트렌드, 문화적 맥락)에서 생성하고, 한국어 사용자에게 자연스럽고 흥미로운 대화 주제로 적합해야 합니다.";
 
         // 3. AI 주제 추천 요청
         // 3-1. AI 에게 요청할  사용자 활동 dto 생성
         TopicGenerateRequest topicGenerateRequest = makeAIRequestDto(user, topicCount);
 
         // 3-1. AI 주제 추천 생성
-        String raw = getTopic(topicGenerateRequest);
+        String raw = getTopic(topicGenerateRequest, userPrompt);
         log.info("AI 주제 생성 완료: {}", raw);
 
         // 4. db 저장
@@ -182,69 +172,75 @@ public class SmallTalkService {
             throw new RuntimeException("Json 파싱 실패", e);
         }
 
-        // 4-2. topics가 빈 배열일 경우 바로 db 저장
+        if (responses == null || responses.isEmpty()) return;
+
+        // 4-2. 배치 임베딩
+        List<String> topicTexts = responses.stream()
+                .map(res -> res.topicContent())
+                .collect(Collectors.toList());
+
+        if(topicTexts.isEmpty()) return;
+
+        List<double[]> embeddings = batchEmbed(topicTexts);
+
+        // 4-3. db에 저장된 내용이 없는 경우 (최초 주제 추천일 경우)
         if(topics.isEmpty()) {
-            List<SmalltalkTopic>  smallTalks = responses.stream()
-                    .map(response -> {
-                        try {
+            List<SmalltalkTopic> smallTalks = new ArrayList<>();
+            for(int i = 0; i < responses.size() && i< embeddings.size(); i++) {
+                try {
+                    List<Double> embeddingList = Arrays.stream(embeddings.get(i))
+                            .boxed()
+                            .collect(Collectors.toList());
+                    String embedding = objectMapper.writeValueAsString(embeddingList);
 
-                            String embedding = objectMapper.writeValueAsString(response.embedding());
-                            return SmalltalkTopic.toEntity(response, user, embedding);
-
-                        } catch (JsonProcessingException e) {
-                            log.error("임베딩 직렬화 실패", e);
-                            throw new RuntimeException("임베딩 직렬화 실패");
-                        }
-                    })
-                    .collect(Collectors.toList());
-
+                    SmalltalkTopic smalltalk = SmalltalkTopic.toEntity(responses.get(i), user, embedding);
+                    smallTalks.add(smalltalk);
+                } catch (JsonProcessingException e) {
+                    log.error("임베딩 직렬화 실패", e);
+                    throw new RuntimeException("임베딩 직렬화 실패");
+                }
+            }
             smalltalkTopicRepository.saveAll(smallTalks);
             return;
         }
 
-        // 4-3. 응답 유사도 확인
+        // 4-4. db에 저장된 내용이 있는 경우 유사도 검사 진행
+
         // 유사도 판단 기준 점수
         double threshold = topics.size() < 10 ? 0.9 : 0.85;
         int maxSaveCount = 5;
-        List<SmalltalkTopic> newTopics = new ArrayList<>();
 
-        for(AISmallTalkResponse response : responses) {
+        List<SmalltalkTopic> newSmallTalks = new ArrayList<>();
 
-            if(newTopics.size() >= maxSaveCount) break;
+        for (int i = 0; i < responses.size() && i < embeddings.size() && newSmallTalks.size() < maxSaveCount; i++) {
+            AISmallTalkResponse res = responses.get(i);
+            double[] newEmbedding = embeddings.get(i);
 
-            // AI 응답 주제 embedding
-            double[] newEmbedding = response.embedding().stream()
-                    .mapToDouble(Double::doubleValue)
-                    .toArray();
-
+            // 유사도를 판단하여 중복 여부를 확인하는 플래그
             boolean isSimilar = false;
 
-            for(SmalltalkTopic topic : topics) {
+            for (SmalltalkTopic topic : topics) {
                 try {
-                    // 저장된 db 주제 embedding 가져오기
-                    List<Double> storedList = objectMapper.readValue(topic.getEmbedding(), new TypeReference<List<Double>>() {});
+
+                    // db에 저장된 주제의 embedding 가져오기
+                    List<Double> storedList = objectMapper.readValue(topic.getEmbedding(), new TypeReference<List<Double>>() {
+                    });
                     double[] storedEmbedding = storedList.stream().mapToDouble(Double::doubleValue).toArray();
 
-                    double sim = cosineSimilarity(newEmbedding, storedEmbedding);
+                    // 가져온 embedding 정규화
+                    double[] normalizeEmbedding = l2normalize(storedEmbedding);
 
-                    // 코사인 유사도 계산
+                    // 유사도 검사
+                    double sim = cosineSimilarity(newEmbedding, normalizeEmbedding);
+                    log.info("유사도 검사 실행");
+
                     if(sim >= threshold) {
+                        log.info("유사도 스킵 - userId={} sim={} 기존토픽='{}' 새토픽='{}'",
+                                user.getId(), String.format("%.3f", sim), topic.getTopicContent(), res.topicContent());
                         isSimilar = true;
-                        log.info("유사한 주제 발견 - 저장 안함: {} (유사도: {:.3f})", response.topicContent(), sim);
+                        log.info("유사한 주제 발견 - 저장 안함: {} (유사도: {})", responses.get(i).topicContent(), sim);
                         break;
                     }
-
-                } catch (JsonProcessingException e) {
-                    log.error("임베딩 파싱 실패", e);
-                    throw new RuntimeException(e);
-                }
-            }
-
-            // 유사도 검사를 통과한 response를 저장
-            if(!isSimilar) {
-                try {
-                    String embedding = objectMapper.writeValueAsString(response.embedding());
-                    newTopics.add(SmalltalkTopic.toEntity(response, user, embedding));
 
                 } catch (JsonProcessingException e) {
                     log.error("임베딩 직렬화 실패", e);
@@ -252,10 +248,28 @@ public class SmallTalkService {
                 }
             }
 
+            // 유사도 검사를 통과한 응답을 저장
+            if(!isSimilar) {
+                try {
+
+                    List<Double> embeddingList = Arrays.stream(embeddings.get(i))
+                            .boxed()
+                            .collect(Collectors.toList());
+                    String embedding = objectMapper.writeValueAsString(embeddingList);
+
+                    SmalltalkTopic smalltalk = SmalltalkTopic.toEntity(responses.get(i), user, embedding);
+                    newSmallTalks.add(smalltalk);
+
+                    log.info("유사도 검사 통과: {}", smalltalk);
+                } catch (JsonProcessingException e) {
+                    log.error("임베딩 직렬화 실패", e);
+                    throw new RuntimeException("임베딩 직렬화 실패");
+                }
+            }
         }
 
-        if (!newTopics.isEmpty()) {
-            smalltalkTopicRepository.saveAll(newTopics);
+        if (!newSmallTalks.isEmpty()) {
+            smalltalkTopicRepository.saveAll(newSmallTalks);
         }
 
     }
@@ -343,20 +357,21 @@ public class SmallTalkService {
      * @param req
      * @return response - AI 가 생성한 스몰토크 주제를 js
      */
-    private String getTopic(TopicGenerateRequest req) {
+    private String getTopic(TopicGenerateRequest req, String prompt) {
 
         try {
             String response = chatClient
                     .prompt()
                     .system(SYSTEM_TEMPLATE)
-                    .user(u -> u.text(req.toString() + USER_PROMPT))
+                    .user(u -> u.text(req.toString() + prompt))
                     .call()
                     .content();
 
             return response;
 
         } catch (Exception e) {
-            throw new RuntimeException("주제 추천 중 오류 발생");
+            log.error("주제 추천 호출 실패: {}", e.getMessage(), e);
+            throw new RuntimeException("주제 추천 중 오류 발생: " + e.getClass().getSimpleName() + ": " + e.getMessage(), e);
         }
     }
 
@@ -402,4 +417,50 @@ public class SmallTalkService {
         return dotProduct / denominator;
     }
 
+    /**
+     *
+     */
+    private List<double[]> batchEmbed(List<String> texts) {
+        if (texts == null || texts.isEmpty()) return List.of();
+
+        List<double[]> out = new ArrayList<>(texts.size());
+        int batchSize = 64; // 현재 5~15개라 1회 호출로 충분
+
+        for (int i = 0; i < texts.size(); i += batchSize) {
+            int end = Math.min(i + batchSize, texts.size());
+            List<String> slice = texts.subList(i, end);
+
+            EmbeddingResponse res = embeddingModel.embedForResponse(slice);
+            List<Embedding> results = res.getResults(); // 입력 순서대로 반환
+
+            int m = Math.min(results.size(), slice.size());
+            for (int r = 0; r < m; r++) {
+                double[] v = toArray(results.get(r));   // List<Double> → double[]
+                out.add(l2normalize(v));                // L2 정규화(코사인 안정화)
+            }
+        }
+        return out;
+    }
+
+    private double[] toArray(Embedding e) {
+        float[] floats = e.getOutput();  // api 가 float[] 반환
+        double[] arr = new double[floats.length];
+        for (int i = 0; i < floats.length; i++) {
+            arr[i] = floats[i];  // float → double 변환
+        }
+        return arr;
+    }
+
+    private double[] l2normalize(double[] v) {
+        double sum = 0.0;
+        for (double x : v) sum += x * x;
+        double norm = Math.sqrt(sum);
+        if (norm == 0) return v;
+
+        double[] normalized = new double[v.length];
+        for (int i = 0; i < v.length; i++) {
+            normalized[i] = v[i] / norm;
+        }
+        return normalized;
+    }
 }

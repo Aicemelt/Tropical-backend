@@ -40,7 +40,7 @@ public class SmalltalkTopic {
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
-    @Column(name = "embedding", columnDefinition = "TEXT")
+    @Column(name = "embedding", columnDefinition = "LONGTEXT")
     private String embedding;
 
     // 연관 관계 엔터티

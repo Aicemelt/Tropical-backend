@@ -23,14 +23,17 @@ spring:
   # https://generativelanguage.googleapis.com/v1beta/openai/
   ai:
     openai:
-      base-url: https://api.openai.com/v1
+      base-url: https://api.openai.com/
       api-key: ${GPT_API_KEY}
       chat:
-        completions-path: /chat/completions
+        # completions-path: /chat/completions
         options:
           model: ${GPT_MODEL}
           temperature: 0.2
           max-tokens: 4096
+      embedding:
+        options:
+          model: text-embedding-3-small  # 임베딩 모델
     retry:
       on-client-errors: true
       on-http-codes: 429,503
