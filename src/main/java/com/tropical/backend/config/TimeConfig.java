@@ -23,15 +23,26 @@ import java.time.Clock;
  * <ul>
  *   <li>현재 시각을 서비스/도메인 로직에서 주입식으로 관리</li>
  *   <li>테스트 코드에서 시각 제어 용이</li>
- *   <li>동적 상한 연도 계산 (현재년도+2) 등에 활용</li>
+ *   <li>동적 상한 연도 계산 (현재년도+5) 등에 활용</li>
  * </ul>
  *
- * @author  왕택준
+ * @author 왕택준
  * @version 0.1
- * @since   2025.09.16
+ * @since 2025.09.19
  */
 @Configuration
 public class TimeConfig {
+
+    /**
+     * 공휴일 조회 시 허용되는 최대 미래 연도의 범위.
+     *
+     * <p>
+     * - 과거 연도는 제한하지 않음 (1900년 이상 허용)<br>
+     * - 미래 연도만 제한하여 불필요한 API 호출 및 데이터 부재 에러 방지<br>
+     * - HolidayController, YearWithinValidator 등에서 검증 시 사용됨
+     * </p>
+     */
+    public static final int HOLIDAY_AHEAD_YEARS = 5; // 기본 5년
 
     /**
      * {@link Clock} 빈 등록.

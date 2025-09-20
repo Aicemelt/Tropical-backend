@@ -45,15 +45,15 @@ import java.util.List;
  *   <li>Swagger/OpenAPI 문서화 지원</li>
  * </ul>
  *
- * @author  왕택준
+ * @author 왕택준
  * @version 1.0
- * @since   2025.09.17
+ * @since 2025.09.17
  */
 @Slf4j
 @Validated
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/holidays")
+@RequestMapping("/api/v1/holidays")
 @Tag(name = "Holiday", description = "공휴일 조회 API")
 public class HolidayController {
 
@@ -77,14 +77,14 @@ public class HolidayController {
      *   <li><b>24절기</b>: 입춘, 하지, 추분, 동지 등</li>
      * </ul>
      *
-     * @param year 조회할 연도 (1900년 이상, 2030년 이하 권장)
+     * @param year  조회할 연도 (1900년 이상, 현재 연도 +5 이하 권장)
      * @param month 조회할 월 (1-12)
      * @return 해당 월의 공휴일 목록 (HolidayDto 배열)
      * @throws IllegalArgumentException 연도나 월이 유효 범위를 벗어난 경우
      */
     @GetMapping("/monthly")
     @Operation(
-            summary = "월별 공휴일 조회", 
+            summary = "월별 공휴일 조회",
             description = "캐시 우선 전략으로 지정된 월의 모든 공휴일, 기념일, 24절기 정보를 조회합니다."
     )
     @ApiResponses({
@@ -93,26 +93,26 @@ public class HolidayController {
             @ApiResponse(responseCode = "500", description = "서버 내부 오류")
     })
     public ResponseEntity<List<HolidayResponse>> getMonthlyHolidays(
-            @Parameter(description = "조회할 연도 (1900 이상, 현재 연도 +2 이하)")
+            @Parameter(description = "조회할 연도 (1900 이상, 현재 연도 +5 이하)")
             @RequestParam
-            @YearWithin(min = 1900, aheadYears = 2)
+            @YearWithin(min = 1900)
             int year,
 
             @Parameter(description = "조회할 월 (1-12)", example = "1")
-            @RequestParam 
+            @RequestParam
             @Min(value = 1, message = "월은 1 이상이어야 합니다")
             @Max(value = 12, message = "월은 12 이하여야 합니다")
             int month
     ) {
         log.debug("월별 공휴일 조회 요청 - year: {}, month: {}", year, month);
-        
+
         List<Holiday> holidays = holidayService.getMonthlyHolidays(year, month);
         List<HolidayResponse> response = holidays.stream()
                 .map(HolidayResponse::from)
                 .toList();
-        
+
         log.debug("월별 공휴일 조회 완료 - year: {}, month: {}, 결과 수: {}", year, month, response.size());
-        
+
         return ResponseEntity.ok(response);
     }
 
@@ -168,6 +168,7 @@ public class HolidayController {
 
         return ResponseEntity.ok(response);
     }
+
     /**
      * 월 단위 휴무일 상태를 조회합니다.
      *
@@ -203,7 +204,7 @@ public class HolidayController {
     public ResponseEntity<List<DayOffStatusResponse>> getMonthStatus(
             @Parameter(description = "조회할 연도", example = "2025")
             @RequestParam
-            @YearWithin(min = 1900, aheadYears = 2)
+            @YearWithin(min = 1900)
             int year,
 
             @Parameter(description = "조회할 월 (1-12)", example = "1")
