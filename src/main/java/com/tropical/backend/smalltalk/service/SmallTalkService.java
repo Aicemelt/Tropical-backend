@@ -33,11 +33,12 @@ public class SmallTalkService {
     private final UserReadService userReadService;
 
     @Transactional(readOnly = true)
-    public TopicResponse getSmallTalks (String email) {
+    public TopicResponse getSmallTalks (Long userId) {
 
         // 1. 유저 검색
-        User user = userReadService.getUserByEmail(email);
-        Long userId = user.getId();
+        User user = userReadService.getUserById(userId);
+        // User user = userReadService.getUserByEmail(email);
+        // Long userId = user.getId();
 
         // 2. 사용자의 활동을 확인
         boolean hasActivity = userActivityService.hasActivity(userId, user);

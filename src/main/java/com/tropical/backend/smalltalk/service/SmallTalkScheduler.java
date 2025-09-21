@@ -23,7 +23,9 @@ public class SmallTalkScheduler {
 
     private final AtomicBoolean running = new AtomicBoolean(false);
 
-    @Scheduled(cron = "${schedules.cron.reward.publish:0 0 9 * * *}", zone = "Asia/Seoul")
+    // @Scheduled(cron = "${schedules.cron.reward.publish:0 0 9 * * *}", zone = "Asia/Seoul")
+
+    @Scheduled(cron = "0 */10 * * * *")
     public void generateDailyTopics() {
 
         // 이전 작업 진행 중 → 스킵

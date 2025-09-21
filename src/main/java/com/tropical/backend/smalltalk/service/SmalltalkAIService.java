@@ -36,7 +36,6 @@ public class SmalltalkAIService {
 
     private final ObjectMapper objectMapper;
 
-    private static final int limit = 15;
     private static final String SYSTEM_TEMPLATE = """
             ## ROLE & GOAL
               당신은 Tropical 사용자를 위한 스몰토크 주제 추천 AI입니다.

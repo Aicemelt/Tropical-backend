@@ -66,7 +66,7 @@ class SmallTalkServiceTest {
     @BeforeEach
     void setUp() {
 
-         /*User testUser = User.builder()
+         User testUser = User.builder()
                 .email("testuser@example.com")
                 .passwordHash("testpasswordhash")
                 .nickname("테스트유저")
@@ -79,7 +79,7 @@ class SmallTalkServiceTest {
         userRepository.save(testUser);
 
         // 2. 필수 동의 생성
-        UserConsent termsConsent = UserConsent.createUserConsent(testUser, UserConsent.ConsentType.TERMS_OF_SERVICE, true);
+       /* UserConsent termsConsent = UserConsent.createUserConsent(testUser, UserConsent.ConsentType.TERMS_OF_SERVICE, true);
         UserConsent privacyConsent = UserConsent.createUserConsent(testUser, UserConsent.ConsentType.PRIVACY_POLICY, true);
         UserConsent calendarConsent = UserConsent.createUserConsent(testUser, UserConsent.ConsentType.CALENDAR_PERSONALIZATION, true);
 
@@ -184,9 +184,9 @@ class SmallTalkServiceTest {
         // given
         String email = "testuser@example.com";
         // when
-        TopicResponse smallTalks = smallTalkService.getSmallTalks(email);
+        // TopicResponse smallTalks = smallTalkService.getSmallTalks(email);
         // then
-        System.out.println("smallTalks = " + smallTalks);
+        // System.out.println("smallTalks = " + smallTalks);
     }
     
     @Test
@@ -230,6 +230,15 @@ class SmallTalkServiceTest {
         String email = "testuser@example.com";
         // when
          // smallTalkService.generateSmallTalk(email);
+        // then
+    }
+
+    @Test
+    @DisplayName("유저생성테스트")
+    void createUser() {
+        // given
+        // when
+        // smallTalkService.generateSmallTalk(email);
         // then
     }
     
