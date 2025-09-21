@@ -11,13 +11,6 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 
 @Repository
-public interface SmalltalkTopicRepository extends JpaRepository<SmalltalkTopic, Long> {
+public interface SmalltalkTopicRepository extends JpaRepository<SmalltalkTopic, Long>, SmalltalkTopicCustom{
 
-    /**
-     *
-     * @param userId
-     * @return
-     */
-    @Query("SELECT t FROM SmalltalkTopic t WHERE t.user.id = :userId")
-    List<SmalltalkTopic> findSmalltalkTopicsByUserId(@Param("userId") Long userId);
 }

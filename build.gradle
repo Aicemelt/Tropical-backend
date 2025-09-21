@@ -72,6 +72,7 @@ dependencies {
     implementation 'com.querydsl:querydsl-jpa:5.0.0:jakarta'                // Jakarta 기반 JPA 모듈
     annotationProcessor 'com.querydsl:querydsl-apt:5.0.0:jakarta'           // Q-클래스 생성용 APT
     annotationProcessor 'jakarta.persistence:jakarta.persistence-api:3.1.0' // JPA 메타 모델(APT용)
+
     // 최신 라인: OpenFeign QueryDSL 6.12 — 그룹ID 변경, :jakarta 제거, APT는 :jpa 사용.
     // implementation 'io.github.openfeign.querydsl:querydsl-jpa:6.12'
     // annotationProcessor 'io.github.openfeign.querydsl:querydsl-apt:6.12:jpa'

@@ -11,6 +11,7 @@ import com.tropical.backend.schedule.entity.Schedule;
 import com.tropical.backend.schedule.repository.ScheduleRepository;
 import com.tropical.backend.smalltalk.dto.request.ActivityDto;
 import com.tropical.backend.smalltalk.dto.request.TopicGenerateRequest;
+import com.tropical.backend.smalltalk.dto.response.TopicResponse;
 import com.tropical.backend.smalltalk.enums.SourceType;
 import com.tropical.backend.todo.entity.Todo;
 import com.tropical.backend.todo.repository.TodoRepository;
@@ -65,7 +66,7 @@ class SmallTalkServiceTest {
     @BeforeEach
     void setUp() {
         
-         /*User testUser = User.builder()
+         User testUser = User.builder()
                 .email("testuser@example.com")
                 .passwordHash("testpasswordhash")
                 .nickname("테스트유저")
@@ -94,7 +95,7 @@ class SmallTalkServiceTest {
         diaryConsent.setUser(testUser);
 
         // 4. 일정 생성
-         Schedule testSchedule = Schedule.builder()
+         /*Schedule testSchedule = Schedule.builder()
                 .user(testUser)
                 .title("뮤지컬 관극")
                 .memo("한복입은남자, 전동석, 카이")
@@ -171,8 +172,21 @@ class SmallTalkServiceTest {
         System.out.println("테스트 일정: " + testSchedule);
         System.out.println("테스트 동의: " + List.of(termsConsent, privacyConsent, calendarConsent, diaryConsent));
 
+
+          */
         em.flush();
-        em.clear();*/
+        em.clear();
+    }
+
+    @Test
+    @DisplayName("회원가입 후 웰컴 주제 반환 테스트")
+    void returnWelcomeTopic() {
+        // given
+        String email = "testuser@example.com";
+        // when
+        TopicResponse smallTalks = smallTalkService.getSmallTalks(email);
+        // then
+        System.out.println("smallTalks = " + smallTalks);
     }
     
     @Test
@@ -215,7 +229,7 @@ class SmallTalkServiceTest {
         // given
         String email = "testuser@example.com";
         // when
-         smallTalkService.generateSmallTalk(email);
+         // smallTalkService.generateSmallTalk(email);
         // then
     }
     

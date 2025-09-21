@@ -13,9 +13,9 @@ public final class WelcomeTopicProvider {
         return List.of(
                 new WelcomeTopicSeed("LIFESTYLE", "주말 루틴", "주말에는 보통 뭘 하면서 쉬세요?"),
                 new WelcomeTopicSeed("FOOD", "요즘 즐겨먹는 음식", "최근에 자주 먹는 음식이나 간식 있으세요?"),
-                new WelcomeTopicSeed("CREATIVE", "만약 여행권을 받는다면", "비행시간 제한 없이 어디로 가고 싶으세요?"),
+                new WelcomeTopicSeed("CREATIVE", "가고싶은 여행지", "어디로 여행 가고 싶으세요?"),
                 new WelcomeTopicSeed("THOUGHT", "소소한 감사", "최근에 감사하다고 느낀 순간이 있으세요?"),
-                new WelcomeTopicSeed("THOUGHT", "소소한 감사", "최근에 감사하다고 느낀 순간이 있으세요?")
+                new WelcomeTopicSeed("TROPICAL", "트로피칼 캘린더 추천", "트로피칼 캘린더 써보셨나요?")
         );
     }
 
