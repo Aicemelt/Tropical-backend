@@ -41,4 +41,12 @@ public class SmalltalkTopicRepositoryImpl implements SmalltalkTopicCustom{
         return rows;
 
     }
+
+    @Override
+    public List<SmalltalkTopic> findAllSmalltalkTopicsByUserId(Long id) {
+        return factory
+                .selectFrom(smalltalkTopic)
+                .where(smalltalkTopic.user.id.eq(id))
+                .fetch();
+    }
 }

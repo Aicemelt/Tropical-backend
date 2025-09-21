@@ -65,8 +65,8 @@ class SmallTalkServiceTest {
 
     @BeforeEach
     void setUp() {
-        
-         User testUser = User.builder()
+
+         /*User testUser = User.builder()
                 .email("testuser@example.com")
                 .passwordHash("testpasswordhash")
                 .nickname("테스트유저")
@@ -95,7 +95,7 @@ class SmallTalkServiceTest {
         diaryConsent.setUser(testUser);
 
         // 4. 일정 생성
-         /*Schedule testSchedule = Schedule.builder()
+        Schedule testSchedule = Schedule.builder()
                 .user(testUser)
                 .title("뮤지컬 관극")
                 .memo("한복입은남자, 전동석, 카이")

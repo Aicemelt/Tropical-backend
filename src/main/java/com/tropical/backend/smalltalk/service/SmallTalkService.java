@@ -30,12 +30,13 @@ public class SmallTalkService {
     private final SmalltalkTopicRepository smalltalkTopicRepository;
 
     private final UserActivityService userActivityService;
+    private final UserReadService userReadService;
 
     @Transactional(readOnly = true)
     public TopicResponse getSmallTalks (String email) {
 
         // 1. 유저 검색
-        User user = getUserByEmail(email);
+        User user = userReadService.getUserByEmail(email);
         Long userId = user.getId();
 
         // 2. 사용자의 활동을 확인
@@ -65,17 +66,6 @@ public class SmallTalkService {
         return new TopicResponse(dtoList);
     }
 
-
-    /**
-     * 이메일로 사용자를 확인하는 메소드입니다.
-     * @param email
-     * @return User
-     */
-    private User getUserByEmail(String email) {
-        return userRepository.findByEmail(email).orElseThrow(
-                () -> new RuntimeException("사용자 없음")
-        );
-    }
 
     /**
      * 회원가입 및 최초 진입 시 웰컴 주제(더미데이터) 반환용 메소드입니다.
