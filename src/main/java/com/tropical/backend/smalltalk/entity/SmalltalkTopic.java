@@ -3,6 +3,7 @@ package com.tropical.backend.smalltalk.entity;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tropical.backend.auth.entity.User;
 import com.tropical.backend.smalltalk.dto.response.AISmallTalkResponse;
+import com.tropical.backend.smalltalk.provider.WelcomeTopicProvider;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;

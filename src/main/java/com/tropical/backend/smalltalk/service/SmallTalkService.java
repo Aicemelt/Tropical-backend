@@ -14,8 +14,11 @@ import com.tropical.backend.schedule.repository.ScheduleRepository;
 import com.tropical.backend.smalltalk.dto.request.ActivityDto;
 import com.tropical.backend.smalltalk.dto.request.TopicGenerateRequest;
 import com.tropical.backend.smalltalk.dto.response.AISmallTalkResponse;
+import com.tropical.backend.smalltalk.dto.response.SmallTalkTopicDto;
+import com.tropical.backend.smalltalk.dto.response.TopicResponse;
 import com.tropical.backend.smalltalk.entity.SmalltalkTopic;
 import com.tropical.backend.smalltalk.enums.SourceType;
+import com.tropical.backend.smalltalk.provider.WelcomeTopicProvider;
 import com.tropical.backend.smalltalk.repository.SmalltalkTopicRepository;
 import com.tropical.backend.todo.repository.TodoRepository;
 import lombok.RequiredArgsConstructor;
@@ -133,15 +136,23 @@ public class SmallTalkService {
         User user = getUserByEmail(email);
         Long userId = user.getId();
 
-        // 2. AI 요청
-        // 2-1. 사용자가 받아온 스몰토크 주제가 있는지 확인
+        // 1-1. 사용자의 활동을 확인
+        boolean hasActivity = hasActivity(userId, user);
+
+        // 1-2. 사용자가 받아온 스몰토크 주제가 있는지 확인
         List<SmalltalkTopic> topics = smalltalkTopicRepository.findSmalltalkTopicsByUserId(userId);
         List<String> contents = topics.stream()
                 .map(topic -> topic.getTopicContent())
                 .collect(Collectors.toList());
 
+        // 1-2. 사용자 활동이 없는 경우, 웰컴 주제 반환
+        if(!hasActivity && topics.isEmpty()){
+            getInitialTopics();
+            return;
+        }
 
-        // 2-2. 주제가 있으면 추가 프롬프트 작성, 가져올 주제 개수를 15개로 지정
+        // 2. AI 요청
+        // 2-1. 주제가 있으면 추가 프롬프트 작성, 가져올 주제 개수를 15개로 지정
         // db에 생성된 주제가 없으면 기본 5개 있으면
         int topicCount = topics.isEmpty() ? 5 : 15;
 
@@ -462,5 +473,29 @@ public class SmallTalkService {
             normalized[i] = v[i] / norm;
         }
         return normalized;
+    }
+
+    // 사용자의 활동기록 확인, 하나라도 있으면 true, 전부 없으면 false 반환
+    private boolean hasActivity(Long userId, User user) {
+
+        boolean todo = todoRepository.existsById(userId);
+        boolean bucket = bucketListRepository.existsByUser(user);
+        boolean diary = diaryRepository.existsById(userId);
+        boolean schedule = scheduleRepository.existsById(userId);
+
+        return todo || bucket || diary || schedule;
+    }
+
+    // 최초 진입 시 웰컴 주제 반환용 메소드
+    private TopicResponse getInitialTopics() {
+        List<WelcomeTopicProvider.WelcomeTopicSeed> seeds = WelcomeTopicProvider.seeds();
+        List<SmallTalkTopicDto> dtoList = new ArrayList<>();
+
+        for(int i = 0; i < seeds.size(); i++) {
+            SmallTalkTopicDto dto = SmallTalkTopicDto.from(seeds.get(i), i + 1L);
+            dtoList.add(dto);
+        }
+
+        return new TopicResponse(dtoList);
     }
 }
