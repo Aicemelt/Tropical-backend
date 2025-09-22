@@ -10,6 +10,10 @@ group = 'com.tropical'
 version = '0.0.1-SNAPSHOT'
 description = 'Tropical-backend'
 
+ext {
+    set('springAiVersion', '1.0.0-M5')
+}
+
 java {
     toolchain {
         // 프로젝트 전역 Java 버전(빌드/런타임) 고정
@@ -27,7 +31,9 @@ configurations {
 repositories {
     // 중앙 저장소 사용(회사 Nexus/Artifactory 없을 때 기본)
     mavenCentral()
+    maven { url 'https://repo.spring.io/milestone' }
 }
+
 
 dependencies {
 
@@ -66,6 +72,7 @@ dependencies {
     implementation 'com.querydsl:querydsl-jpa:5.0.0:jakarta'                // Jakarta 기반 JPA 모듈
     annotationProcessor 'com.querydsl:querydsl-apt:5.0.0:jakarta'           // Q-클래스 생성용 APT
     annotationProcessor 'jakarta.persistence:jakarta.persistence-api:3.1.0' // JPA 메타 모델(APT용)
+
     // 최신 라인: OpenFeign QueryDSL 6.12 — 그룹ID 변경, :jakarta 제거, APT는 :jpa 사용.
     // implementation 'io.github.openfeign.querydsl:querydsl-jpa:6.12'
     // annotationProcessor 'io.github.openfeign.querydsl:querydsl-apt:6.12:jpa'
@@ -85,8 +92,22 @@ dependencies {
     // --- API 문서화 (OpenAPI/Swagger) ---
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.13' // 최신 안정판
 
+
+
     // --- Dotenv (.env 자동 로딩) ---
     implementation 'me.paulschwarz:spring-dotenv:4.0.0'  // Spring 환경으로 .env 값 주입
+
+    // --- Spring AI (Google AI via OpenAI compatible API) ---
+    // implementation "org.springframework.ai:spring-ai-openai-spring-boot-starter:${springAiVersion}" // spring AI 사용
+
+    // --- Spring AI (Swagger 의존성 제외) ---
+    implementation("org.springframework.ai:spring-ai-openai-spring-boot-starter:${springAiVersion}") {
+        exclude group: 'io.swagger.core.v3', module: 'swagger-annotations'
+    }
+
+    // --- OpenAI Embedding API ---
+    // implementation 'com.theokanning.openai-gpt3-java:client:0.10.0'
+
 }
 
 tasks.named('test') {
