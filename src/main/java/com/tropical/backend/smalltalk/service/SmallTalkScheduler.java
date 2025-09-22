@@ -24,10 +24,10 @@ public class SmallTalkScheduler {
 
     private final AtomicBoolean running = new AtomicBoolean(false);
 
-    // @Scheduled(cron = "${schedules.cron.reward.publish:0 0 9 * * *}", zone = "Asia/Seoul")
-
     // cron = "초 분 시간 일 월 요일"
-    @Scheduled(cron = "0 0/3 * * * *", zone = "Asia/Seoul")
+    // @Scheduled(cron = "0 0/3 * * * *", zone = "Asia/Seoul")
+   //  @Scheduled(cron = "${schedules.cron.reward.publish:0 0 9 * * *}", zone = "Asia/Seoul")
+    @Scheduled(cron = "${schedules.cron.reward.publish:0 0 9 * * *}", zone = "Asia/Seoul")
     public void generateDailyTopics() {
         log.info("[SCHED] tick");
 
