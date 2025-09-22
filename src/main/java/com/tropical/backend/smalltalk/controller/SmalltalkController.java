@@ -21,7 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Smalltalk", description = "스몰토크 API")
 public class SmalltalkController {
 
-    private SmallTalkService smallTalkService;
+    private final SmallTalkService smallTalkService;
 
     @GetMapping("smalltalk")
     @Tag(name = "Smalltalk", description = "스몰토크 조회 API, 최초 진입시 더미데이터 반환")
