@@ -6,6 +6,7 @@ import com.tropical.backend.smalltalk.service.SmallTalkService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -29,7 +30,8 @@ public class SmalltalkController {
 
         // 인증된 사용자 정보 검증
         if (userDetails == null) {
-            throw new IllegalArgumentException("인증된 사용자 정보가 필요합니다");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.fail("로그인이 필요합니다"));
         }
 
         Long userId = Long.valueOf(userDetails.getUsername());

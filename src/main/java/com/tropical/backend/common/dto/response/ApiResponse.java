@@ -37,4 +37,13 @@ public class ApiResponse<T> {
                 .data(data)
                 .build();
     }
+
+    // 응답 객체 생성 팩토리 메서드
+    public static <T> ApiResponse<T> fail(String message) {
+        return ApiResponse.<T>builder()
+                .success(false)
+                .message(message)
+                .timestamp(LocalDateTime.now())
+                .build();
+    }
 }

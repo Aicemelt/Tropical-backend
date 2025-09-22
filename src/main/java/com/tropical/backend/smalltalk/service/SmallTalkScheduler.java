@@ -26,7 +26,8 @@ public class SmallTalkScheduler {
 
     // @Scheduled(cron = "${schedules.cron.reward.publish:0 0 9 * * *}", zone = "Asia/Seoul")
 
-    @Scheduled(cron = "0 */3 * * * *")
+    // cron = "초 분 시간 일 월 요일"
+    @Scheduled(cron = "0 0/3 * * * *", zone = "Asia/Seoul")
     public void generateDailyTopics() {
         log.info("[SCHED] tick");
 
