@@ -603,17 +603,24 @@ public class AuthController {
      * 만료된 Access Token을 Refresh Token을 사용하여 갱신합니다.
      * Refresh Token의 유효성을 검증한 후 새로운 Access Token을 발급하며,
      * 응답과 함께 쿠키도 업데이트합니다.
+     * HttpOnly 쿠키 기반 인증을 지원하여 보안성을 향상시켰습니다.
      * </p>
      *
-     * @param refreshTokenRequest Refresh Token 정보
-     * @param response            HTTP 응답 객체 (쿠키 업데이트용)
+     * @param refreshTokenRequest    Refresh Token 정보 (Body) - 하위 호환성
+     * @param refreshTokenFromCookie 쿠키에서 자동으로 읽어온 Refresh Token (우선순위)
+     * @param response               HTTP 응답 객체 (쿠키 업데이트용)
      * @return 새로운 Access Token
      */
     @PostMapping("/token/refresh")
-    public ResponseEntity<?> refreshToken(@RequestBody Map<String, String> refreshTokenRequest,
+    public ResponseEntity<?> refreshToken(@RequestBody(required = false) Map<String, String> refreshTokenRequest,
+                                          @CookieValue(name = "REFRESH_TOKEN", required = false) String refreshTokenFromCookie,
                                           HttpServletResponse response) {
 
-        String refreshToken = refreshTokenRequest.get("refreshToken");
+        // 쿠키 우선, Body 폴백 방식 (하위 호환성 유지)
+        String refreshToken = refreshTokenFromCookie;
+        if (refreshToken == null && refreshTokenRequest != null) {
+            refreshToken = refreshTokenRequest.get("refreshToken");
+        }
 
         if (refreshToken == null || refreshToken.trim().isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of(

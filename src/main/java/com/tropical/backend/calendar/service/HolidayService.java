@@ -7,6 +7,7 @@ import com.tropical.backend.calendar.dto.response.HolidayCheckResponse;
 import com.tropical.backend.calendar.dto.response.HolidayEventResponse;
 import com.tropical.backend.calendar.entity.Holiday;
 import com.tropical.backend.calendar.repository.HolidayRepository;
+import com.tropical.backend.config.TimeConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -391,12 +392,12 @@ public class HolidayService {
     // ===============================
 
     /**
-     * 동적 최대 허용 연도(현재 연도 + 2)를 반환합니다.
+     * 동적 최대 허용 연도(현재 연도 + 5)를 반환합니다.
      *
      * <p>테스트 용이성을 위해 {@link Clock}을 사용합니다.</p>
      */
     private int dynamicMaxYear() {
-        return Year.now(clock).getValue() + 2;
+        return Year.now(clock).getValue() + TimeConfig.HOLIDAY_AHEAD_YEARS;
     }
 
     /**

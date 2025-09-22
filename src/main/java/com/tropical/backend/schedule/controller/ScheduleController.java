@@ -14,6 +14,10 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
+import java.util.List;
+import java.util.stream.Collectors;
+
 /**
  * 일정 관리 컨트롤러
  *
@@ -60,6 +64,72 @@ public class ScheduleController {
         ScheduleResponse response = convertToResponse(savedSchedule);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    /**
+     * 사용자의 모든 일정 조회
+     */
+    @GetMapping
+    public ResponseEntity<List<ScheduleResponse>> getAllSchedules(
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        if (userDetails == null) {
+            throw new IllegalArgumentException("인증된 사용자 정보가 필요합니다");
+        }
+
+        Long userId = Long.valueOf(userDetails.getUsername());
+        List<Schedule> schedules = scheduleService.getSchedulesByUserId(userId);
+
+        List<ScheduleResponse> responses = schedules.stream()
+                .map(this::convertToResponse)
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(responses);
+    }
+
+    /**
+     * 특정 날짜의 일정 조회
+     */
+    @GetMapping("/date/{date}")
+    public ResponseEntity<List<ScheduleResponse>> getSchedulesByDate(
+            @PathVariable LocalDate date,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        if (userDetails == null) {
+            throw new IllegalArgumentException("인증된 사용자 정보가 필요합니다");
+        }
+
+        Long userId = Long.valueOf(userDetails.getUsername());
+        List<Schedule> schedules = scheduleService.getSchedulesByDate(userId, date);
+
+        List<ScheduleResponse> responses = schedules.stream()
+                .map(this::convertToResponse)
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(responses);
+    }
+
+    /**
+     * 특정 월의 일정 조회
+     */
+    @GetMapping("/month/{year}/{month}")
+    public ResponseEntity<List<ScheduleResponse>> getSchedulesByMonth(
+            @PathVariable int year,
+            @PathVariable int month,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        if (userDetails == null) {
+            throw new IllegalArgumentException("인증된 사용자 정보가 필요합니다");
+        }
+
+        Long userId = Long.valueOf(userDetails.getUsername());
+        List<Schedule> schedules = scheduleService.getSchedulesByMonth(userId, year, month);
+
+        List<ScheduleResponse> responses = schedules.stream()
+                .map(this::convertToResponse)
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(responses);
     }
 
     /**

@@ -14,6 +14,11 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
 /**
  * 일기 관리 컨트롤러
  *
@@ -58,6 +63,135 @@ public class DiaryController {
         DiaryResponse response = convertToResponse(savedDiary);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    /**
+     * 사용자의 모든 일기 조회
+     */
+    @GetMapping
+    public ResponseEntity<List<DiaryResponse>> getAllDiaries(
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        if (userDetails == null) {
+            throw new IllegalArgumentException("인증된 사용자 정보가 필요합니다");
+        }
+
+        Long userId = Long.valueOf(userDetails.getUsername());
+        List<Diary> diaries = diaryService.getDiariesByUserId(userId);
+
+        List<DiaryResponse> responses = diaries.stream()
+                .map(this::convertToResponse)
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(responses);
+    }
+
+    /**
+     * 특정 날짜의 일기 조회
+     */
+    @GetMapping("/date/{date}")
+    public ResponseEntity<DiaryResponse> getDiaryByDate(
+            @PathVariable LocalDate date,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        if (userDetails == null) {
+            throw new IllegalArgumentException("인증된 사용자 정보가 필요합니다");
+        }
+
+        Long userId = Long.valueOf(userDetails.getUsername());
+        Optional<Diary> diary = diaryService.getDiaryByDate(userId, date);
+
+        if (diary.isPresent()) {
+            DiaryResponse response = convertToResponse(diary.get());
+            return ResponseEntity.ok(response);
+        } else {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    /**
+     * 특정 월의 일기 조회
+     */
+    @GetMapping("/month/{year}/{month}")
+    public ResponseEntity<List<DiaryResponse>> getDiariesByMonth(
+            @PathVariable int year,
+            @PathVariable int month,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        if (userDetails == null) {
+            throw new IllegalArgumentException("인증된 사용자 정보가 필요합니다");
+        }
+
+        Long userId = Long.valueOf(userDetails.getUsername());
+        List<Diary> diaries = diaryService.getDiariesByMonth(userId, year, month);
+
+        List<DiaryResponse> responses = diaries.stream()
+                .map(this::convertToResponse)
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(responses);
+    }
+
+    /**
+     * 감정별 일기 조회
+     */
+    @GetMapping("/emotion/{emotion}")
+    public ResponseEntity<List<DiaryResponse>> getDiariesByEmotion(
+            @PathVariable String emotion,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        if (userDetails == null) {
+            throw new IllegalArgumentException("인증된 사용자 정보가 필요합니다");
+        }
+
+        Long userId = Long.valueOf(userDetails.getUsername());
+        List<Diary> diaries = diaryService.getDiariesByEmotion(userId, emotion);
+
+        List<DiaryResponse> responses = diaries.stream()
+                .map(this::convertToResponse)
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(responses);
+    }
+
+    /**
+     * 날씨별 일기 조회
+     */
+    @GetMapping("/weather/{weather}")
+    public ResponseEntity<List<DiaryResponse>> getDiariesByWeather(
+            @PathVariable String weather,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        if (userDetails == null) {
+            throw new IllegalArgumentException("인증된 사용자 정보가 필요합니다");
+        }
+
+        Long userId = Long.valueOf(userDetails.getUsername());
+        List<Diary> diaries = diaryService.getDiariesByWeather(userId, weather);
+
+        List<DiaryResponse> responses = diaries.stream()
+                .map(this::convertToResponse)
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(responses);
+    }
+
+    /**
+     * 특정 날짜에 일기 존재 여부 확인
+     */
+    @GetMapping("/exists/{date}")
+    public ResponseEntity<Boolean> checkDiaryExists(
+            @PathVariable LocalDate date,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        if (userDetails == null) {
+            throw new IllegalArgumentException("인증된 사용자 정보가 필요합니다");
+        }
+
+        Long userId = Long.valueOf(userDetails.getUsername());
+        boolean exists = diaryService.existsByDate(userId, date);
+
+        return ResponseEntity.ok(exists);
     }
 
     /**
