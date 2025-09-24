@@ -17,6 +17,7 @@ import io.jsonwebtoken.Claims;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
@@ -35,11 +36,12 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * JWT 기반 인증 API 컨트롤러 (이메일 인증 완료)
+ * JWT 기반 인증 API 컨트롤러 (환경변수 기반 동적 URL 지원)
  *
  * <p>
  * JWT 토큰을 사용하는 로컬 계정 회원가입, 로그인, 온보딩 등
  * 사용자 인증과 관련된 REST API 엔드포인트를 제공합니다.
+ * 환경변수 기반으로 localhost와 IP 주소 접속을 모두 지원하며,
  * Authorization 헤더와 HttpOnly 쿠키를 모두 지원하는 하이브리드 방식입니다.
  * </p>
  *
@@ -47,16 +49,16 @@ import java.util.Map;
  * <ul>
  *   <li>로컬 계정 회원가입 (이메일 인증 메일 자동 발송)</li>
  *   <li>JWT 기반 로그인 및 토큰 발급 (이메일 인증 확인)</li>
- *   <li>이메일 인증 처리 및 재발송</li>
- *   <li>온보딩 프로세스 (JWT 인증 필요)</li>
+ *   <li>이메일 인증 처리 및 재발송 (동적 URL 지원)</li>
+ *   <li>온보딩 프로세스 (JWT 인증 필요, ONBOARDING_TOKEN 정리)</li>
  *   <li>사용자 인증 상태 확인</li>
  *   <li>로그아웃 처리 (쿠키 삭제 포함)</li>
  *   <li>토큰 갱신 (쿠키 업데이트 포함)</li>
  * </ul>
  *
  * @author 왕택준
- * @version 0.4
- * @since 2025.09.15
+ * @version 0.5
+ * @since 2025.09.24
  */
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -70,11 +72,129 @@ public class AuthController {
     private final JwtTokenProvider jwtTokenProvider;
     private final EmailService emailService;
 
-    @Value("${app.frontend.base-url:http://localhost:3000}")
-    private String frontendBaseUrl;
+    /**
+     * 프론트엔드 포트 번호
+     *
+     * <p>동적 URL 생성 시 사용될 프론트엔드 포트</p>
+     */
+    @Value("${app.frontend.port:5005}")
+    private String frontendPort;
 
-    @Value("${app.backend.base-url:http://localhost:8080}")
+    /**
+     * 운영환경용 고정 프론트엔드 도메인
+     *
+     * <p>값이 있으면 동적 호스트보다 우선 적용됨</p>
+     */
+    @Value("${app.frontend.domain:}")
+    private String frontendDomain;
+
+    /**
+     * 백엔드 포트 번호
+     *
+     * <p>이메일 인증 링크 생성 시 사용</p>
+     */
+    @Value("${app.backend.base-url:http://localhost:9005}")
     private String backendBaseUrl;
+
+    /**
+     * 운영환경용 고정 백엔드 도메인
+     *
+     * <p>값이 있으면 동적 호스트보다 우선 적용됨</p>
+     */
+    @Value("${app.backend.domain:}")
+    private String backendDomain;
+
+    /**
+     * 동적 호스트 사용 여부
+     *
+     * <p>true: 현재 요청 호스트에 맞춰 동적 생성, false: localhost 고정</p>
+     */
+    @Value("${app.frontend.use-dynamic-host:true}")
+    private boolean useDynamicHost;
+
+    /**
+     * 환경변수 기반 프론트엔드 URL 동적 생성
+     *
+     * <p>
+     * 설정 우선순위에 따라 프론트엔드 URL을 결정합니다:
+     * 1순위: 운영환경 고정 도메인 (FRONTEND_DOMAIN)
+     * 2순위: 동적 호스트 (현재 요청 호스트 + 프론트엔드 포트)
+     * 3순위: localhost 폴백
+     * </p>
+     *
+     * <p>동적 URL 생성 예시:</p>
+     * <ul>
+     *   <li>localhost:9005 요청 → http://localhost:5005</li>
+     *   <li>IPv4 주소:9005 요청 → http://IPv4 주소:5005</li>
+     *   <li>FRONTEND_DOMAIN 설정 시 → 설정된 도메인 사용</li>
+     * </ul>
+     *
+     * @param request HTTP 요청 객체 (호스트 정보 추출용)
+     * @return 동적으로 생성된 프론트엔드 베이스 URL
+     */
+    private String getFrontendBaseUrl(HttpServletRequest request) {
+        // 1순위: 운영환경에서 고정 도메인이 설정된 경우 우선 적용
+        if (!frontendDomain.isEmpty()) {
+            log.debug("고정 프론트엔드 도메인 사용: {}", frontendDomain);
+            return frontendDomain;
+        }
+
+        // 2순위: 개발환경에서 동적 호스트 사용
+        if (useDynamicHost) {
+            String scheme = request.getScheme(); // http or https
+            String serverName = request.getServerName(); // localhost or IP
+            String dynamicUrl = String.format("%s://%s:%s", scheme, serverName, frontendPort);
+            log.debug("동적 프론트엔드 URL 생성: {} (요청 호스트: {})", dynamicUrl, serverName);
+            return dynamicUrl;
+        }
+
+        // 3순위: 폴백 - localhost 고정 사용
+        String fallbackUrl = String.format("http://localhost:%s", frontendPort);
+        log.debug("폴백 프론트엔드 URL 사용: {}", fallbackUrl);
+        return fallbackUrl;
+    }
+
+    /**
+     * 환경변수 기반 백엔드 URL 동적 생성 (프론트엔드와 동일한 우선순위 구조)
+     *
+     * <p>
+     * 설정 우선순위에 따라 백엔드 URL을 결정합니다:
+     * 1순위: 운영환경 고정 도메인 (BACKEND_DOMAIN)
+     * 2순위: 동적 호스트 (현재 요청 호스트 + 백엔드 포트)
+     * 3순위: localhost 폴백
+     * </p>
+     *
+     * <p>동적 URL 생성 예시:</p>
+     * <ul>
+     *   <li>localhost:9005 요청 → http://localhost:9005</li>
+     *   <li>IPv4 주소:9005 요청 → http://IPv4 주소:9005</li>
+     *   <li>BACKEND_DOMAIN 설정 시 → 설정된 도메인 사용</li>
+     * </ul>
+     *
+     * @param request HTTP 요청 객체 (호스트 정보 추출용)
+     * @return 동적으로 생성된 백엔드 베이스 URL
+     */
+    private String getBackendBaseUrl(HttpServletRequest request) {
+        // 1순위: 운영환경에서 고정 도메인이 설정된 경우 우선 적용
+        if (backendDomain != null && !backendDomain.trim().isEmpty()) {
+            log.debug("고정 백엔드 도메인 사용: {}", backendDomain);
+            return backendDomain;
+        }
+
+        // 2순위: 개발환경에서 동적 호스트 사용
+        if (useDynamicHost) {
+            String scheme = request.getScheme(); // http or https
+            String serverName = request.getServerName(); // localhost or IP
+            int serverPort = request.getServerPort(); // 실제 요청받은 포트
+            String dynamicUrl = String.format("%s://%s:%d", scheme, serverName, serverPort);
+            log.debug("동적 백엔드 URL 생성: {} (요청 호스트: {})", dynamicUrl, serverName);
+            return dynamicUrl;
+        }
+
+        // 3순위: 폴백 - localhost 고정 사용 (기존 설정값 활용)
+        log.debug("폴백 백엔드 URL 사용: {}", backendBaseUrl);
+        return backendBaseUrl;
+    }
 
     /**
      * 로컬 계정 회원가입 (약관 동의 + 이메일 인증 메일 발송)
@@ -97,7 +217,8 @@ public class AuthController {
     @ApiResponse(responseCode = "200", description = "회원가입 성공 및 이메일 인증 대기")
     @ApiResponse(responseCode = "400", description = "회원가입 실패 (이메일 중복, 필수 동의 누락 등)")
     @Transactional
-    public ResponseEntity<?> signup(@Valid @RequestBody SignupRequest signupRequest) {
+    public ResponseEntity<?> signup(@Valid @RequestBody SignupRequest signupRequest,
+                                    HttpServletRequest request) {
         log.info("로컬 계정 회원가입 요청 - 이메일: {}, 닉네임: {}",
                 signupRequest.getEmail(), signupRequest.getNickname());
 
@@ -105,8 +226,8 @@ public class AuthController {
             // 1) 필수 동의 검증 (Bean Validation으로도 검증되지만 추가 보안)
             var rc = signupRequest.getRequiredConsents();
             if (rc == null || !Boolean.TRUE.equals(rc.getTermsOfService())
-                    || !Boolean.TRUE.equals(rc.getPrivacyPolicy())
-                    || !Boolean.TRUE.equals(rc.getCalendarPersonalization())) {
+                || !Boolean.TRUE.equals(rc.getPrivacyPolicy())
+                || !Boolean.TRUE.equals(rc.getCalendarPersonalization())) {
                 return ResponseEntity.badRequest().body(Map.of(
                         "success", false,
                         "errorCode", "CONSENT_REQUIRED",
@@ -150,11 +271,12 @@ public class AuthController {
 
             // 4) 이메일 인증 토큰 발급 및 발송
             String emailVerifyToken = jwtTokenProvider.createEmailVerifyToken(user.getId(), user.getEmail());
-            String verifyUrl = backendBaseUrl + "/api/v1/auth/verify?token=" + emailVerifyToken;
+            String backendUrl = getBackendBaseUrl(request); // 동적 URL 생성
+            String verifyUrl = backendUrl + "/api/v1/auth/verify?token=" + emailVerifyToken;
             emailService.sendVerificationMail(user.getEmail(), verifyUrl);
 
             // 5) 응답: 로그인 토큰 없이 이메일 인증 단계로 이동
-            log.info("로컬 계정 회원가입 완료 - 사용자 ID: {}, 이메일 인증 대기", user.getId());
+            log.info("로컬 계정 회원가입 완료 - 사용자 ID: {}, 동적 인증 URL: {}", user.getId(), backendUrl);
 
             return ResponseEntity.ok(Map.of(
                     "success", true,
@@ -270,21 +392,23 @@ public class AuthController {
     }
 
     /**
-     * 이메일 인증 처리
+     * 이메일 인증 처리 (동적 리다이렉트 URL 지원)
      *
      * <p>
      * 이메일로 발송된 인증 링크를 통해 이메일 인증을 완료합니다.
      * 토큰을 검증한 후 사용자의 emailVerified 플래그를 true로 설정하고
      * 인증 완료 시간을 기록합니다.
-     * 인증 상태에 따라 다른 페이지로 리다이렉트합니다.
+     * 환경변수 설정에 따라 동적으로 생성된 프론트엔드 URL로 리다이렉트합니다.
      * </p>
      *
      * @param token    이메일 인증 토큰
+     * @param request  HTTP 요청 객체 (동적 URL 생성용)
      * @param response HTTP 응답 객체 (리다이렉트용)
      * @throws IOException 리다이렉트 실패 시
      */
     @GetMapping("/verify")
     public void verifyEmail(@RequestParam("token") String token,
+                            HttpServletRequest request,
                             HttpServletResponse response) throws IOException {
         try {
             Claims claims = jwtTokenProvider.parseClaims(token);
@@ -292,6 +416,7 @@ public class AuthController {
             // 토큰 타입 확인
             if (!"EMAIL_VERIFY".equals(String.valueOf(claims.get("tokenType")))) {
                 log.warn("잘못된 토큰 타입으로 이메일 인증 시도");
+                String frontendBaseUrl = getFrontendBaseUrl(request);
                 response.sendRedirect(frontendBaseUrl + "/verify-failed");
                 return;
             }
@@ -302,16 +427,21 @@ public class AuthController {
             // 이메일 인증 처리
             boolean wasActuallyVerified = userService.markEmailVerified(userId, email);
 
+            // 동적 프론트엔드 URL 생성
+            String frontendBaseUrl = getFrontendBaseUrl(request);
+
             if (wasActuallyVerified) {
                 log.info("이메일 인증 완료 - 사용자 ID: {}, 이메일: {}", userId, email);
                 response.sendRedirect(frontendBaseUrl + "/verified?status=success");
             } else {
                 // 이미 인증된 경우
+                log.info("이미 인증된 사용자 재인증 시도 - 사용자 ID: {}, 이메일: {}", userId, email);
                 response.sendRedirect(frontendBaseUrl + "/verified?status=already");
             }
 
         } catch (Exception e) {
             log.warn("이메일 인증 실패 - 토큰: {}, 사유: {}", token, e.getMessage());
+            String frontendBaseUrl = getFrontendBaseUrl(request);
             response.sendRedirect(frontendBaseUrl + "/verify-failed");
         }
     }
@@ -327,7 +457,7 @@ public class AuthController {
      * @return 재발송 결과
      */
     @PostMapping("/verify/resend")
-    public ResponseEntity<?> resendVerificationEmail() {
+    public ResponseEntity<?> resendVerificationEmail(HttpServletRequest request) {
         Long userId = JwtAuthenticationFilter.getCurrentUserId();
         if (userId == null) {
             return ResponseEntity.badRequest().body(Map.of(
@@ -363,10 +493,11 @@ public class AuthController {
 
             // 인증 메일 재발송
             String emailVerifyToken = jwtTokenProvider.createEmailVerifyToken(user.getId(), user.getEmail());
-            String verifyUrl = backendBaseUrl + "/api/v1/auth/verify?token=" + emailVerifyToken;
+            String backendUrl = getBackendBaseUrl(request); // 동적 URL 생성
+            String verifyUrl = backendUrl + "/api/v1/auth/verify?token=" + emailVerifyToken;
             emailService.sendVerificationMail(user.getEmail(), verifyUrl);
 
-            log.info("이메일 인증 메일 재발송 완료 - 사용자 ID: {}", userId);
+            log.info("이메일 인증 메일 재발송 완료 - 사용자 ID: {}, 동적 인증 URL: {}", userId, backendUrl);
 
             return ResponseEntity.ok(Map.of(
                     "success", true,
@@ -385,11 +516,12 @@ public class AuthController {
     }
 
     /**
-     * 소셜 로그인 온보딩 완료 처리 (소셜 계정 전용)
+     * 소셜 로그인 온보딩 완료 처리 (소셜 계정 전용 + ONBOARDING_TOKEN 정리)
      *
      * <p>
      * 소셜 로그인 후 최초 1회 약관 동의와 추가 정보를 입력받아 온보딩을 완료합니다.
      * 로컬 계정은 회원가입 단계에서 온보딩이 완료되므로 이 엔드포인트는 소셜 계정 전용입니다.
+     * 온보딩 완료 시 기존 ONBOARDING_TOKEN을 제거하고 정식 ACCESS/REFRESH TOKEN을 발급합니다.
      * </p>
      *
      * @param onboardingRequest 동의 정보 (필수 동의, 선택 동의)
@@ -462,6 +594,9 @@ public class AuthController {
             }
 
             // ===== 토큰 교체 프로세스 =====
+            // 기존 ONBOARDING 토큰 제거 (보안상 중요)
+            response.addCookie(CookieUtil.expire("ONBOARDING_TOKEN"));
+
             // 기존 ONBOARDING 토큰을 정식 ACCESS/REFRESH 토큰으로 교체
             // 이제 사용자는 ROLE_USER 권한으로 모든 API에 접근 가능
             String accessToken = jwtTokenProvider.createAccessToken(user.getId(), user.getEmail());

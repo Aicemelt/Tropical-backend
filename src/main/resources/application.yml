@@ -3,6 +3,7 @@
 # ===============================
 server:
   port: ${SERVER_PORT:9005}  # 서버 포트 번호 (환경변수 또는 기본값 9005)
+  address: 0.0.0.0
 
 # ===============================
 # Spring Boot 기본 설정
@@ -146,9 +147,16 @@ app:
 
   # URL 설정 (.env의 APP_BASE_URL 사용)
   frontend:
-    base-url: http://localhost:5005  # .env OAuth2 리다이렉트와 일치
+    port: ${FRONTEND_PORT:5005}
+    use-dynamic-host: ${USE_DYNAMIC_HOST:true}
+    domain: ${FRONTEND_DOMAIN:} # 운영환경용 (빈 값이면 동적 생성)
+
   backend:
-    base-url: ${APP_BASE_URL:http://localhost:9005}  # .env의 APP_BASE_URL
+    port: ${BACKEND_PORT:9005}
+    base-url: ${APP_BASE_URL:http://localhost:9005}
+    domain: ${BACKEND_DOMAIN:} # 운영환경용 (빈 값이면 동적 생성)
+
+  allowed-hosts: ${ALLOWED_HOSTS:localhost} # 허용 호스트 목록
 
   # 이메일 발신/제어 및 인증 링크 베이스 URL
   mail:

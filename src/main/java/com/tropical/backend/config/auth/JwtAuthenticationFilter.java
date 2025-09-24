@@ -63,6 +63,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private static final String AUTHORIZATION_HEADER = "Authorization";
     private static final String BEARER_PREFIX = "Bearer ";
     private static final String ACCESS_TOKEN_COOKIE = "ACCESS_TOKEN";
+    private static final String ONBOARDING_TOKEN_COOKIE = "ONBOARDING_TOKEN";
 
     private final JwtTokenProvider jwtTokenProvider;
     private final UserService userService;
@@ -122,14 +123,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return token;
         }
 
-        // 2순위: ACCESS_TOKEN 쿠키
+        // 2순위: 쿠키에서 토큰 추출 (ACCESS_TOKEN, ONBOARDING_TOKEN 모두 확인)
         Cookie[] cookies = request.getCookies();
         if (cookies != null) {
             for (Cookie cookie : cookies) {
-                if (ACCESS_TOKEN_COOKIE.equals(cookie.getName())) {
+                if (ACCESS_TOKEN_COOKIE.equals(cookie.getName()) ||
+                    ONBOARDING_TOKEN_COOKIE.equals(cookie.getName())) {
                     String token = cookie.getValue();
                     if (StringUtils.hasText(token)) {
-                        log.debug("JWT 토큰 추출 완료 (쿠키) - URI: {}", request.getRequestURI());
+                        log.debug("JWT 토큰 추출 완료 (쿠키: {}) - URI: {}",
+                                cookie.getName(), request.getRequestURI());
                         return token;
                     }
                 }
