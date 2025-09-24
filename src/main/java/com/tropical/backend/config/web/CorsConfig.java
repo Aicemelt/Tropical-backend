@@ -1,48 +1,77 @@
 package com.tropical.backend.config.web;
 
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
- * CORS(Cross-Origin Resource Sharing) 설정 클래스
+ * CORS(Cross-Origin Resource Sharing) 동적 설정 클래스
  *
  * <p>
- * 프론트엔드와 백엔드 간의 Cross-Origin 요청을 안전하게 처리하기 위한
- * CORS 정책을 정의합니다. JWT 토큰 기반 인증과 쿠키 사용을 지원하도록
- * 설정되어 있습니다.
+ * 환경변수를 통해 허용된 호스트 목록을 관리하여 개발환경에서
+ * localhost와 IP 주소 접속을 모두 지원합니다. JWT 토큰 기반 인증과
+ * 쿠키 사용을 지원하도록 설정되어 있습니다.
  * </p>
  *
  * <p>주요 기능:</p>
  * <ul>
- *   <li>허용된 오리진에서의 API 접근 허용</li>
+ *   <li>환경변수 기반 동적 오리진 생성 (ALLOWED_HOSTS)</li>
+ *   <li>localhost와 IP 주소 접속 모두 지원</li>
  *   <li>Authorization 헤더와 쿠키 사용 지원</li>
  *   <li>프리플라이트 요청 처리 최적화</li>
- *   <li>응답 헤더 노출 설정으로 브라우저 접근성 향상</li>
  * </ul>
  *
  * @author 왕택준
- * @version 0.1
- * @since 2025.09.14
+ * @version 0.2
+ * @since 2025.09.24
  */
+@Slf4j
 @Configuration
 public class CorsConfig {
 
     /**
-     * CORS 설정을 위한 CorsConfigurationSource Bean 생성
+     * 허용된 호스트 목록 (환경변수에서 가져옴)
+     *
+     * <p>쉼표로 구분된 호스트 목록 (예: localhost,172.30.1.26,192.168.1.100)</p>
+     */
+    @Value("${app.allowed-hosts:localhost}")
+    private String allowedHostsStr;
+
+    /**
+     * 프론트엔드 포트 번호
+     *
+     * <p>CORS 오리진 생성 시 사용될 프론트엔드 포트</p>
+     */
+    @Value("${app.frontend.port:5005}")
+    private String frontendPort;
+
+    /**
+     * 환경변수 기반 동적 CORS 설정
      *
      * <p>
-     * 프론트엔드(localhost:5005)와의 안전한 통신을 위해 CORS 정책을 설정합니다.
-     * JWT 토큰과 쿠키 인증 방식을 모두 지원하며, 보안을 위해 정확한 오리진만 허용합니다.
+     * ALLOWED_HOSTS 환경변수에서 허용된 호스트 목록을 읽어와서
+     * 동적으로 CORS 오리진을 생성합니다. 이를 통해 개발환경에서
+     * localhost든 IP 주소든 자유롭게 접속할 수 있습니다.
      * </p>
+     *
+     * <p>동적 오리진 생성 예시:</p>
+     * <ul>
+     *   <li>ALLOWED_HOSTS=localhost → http://localhost:5005</li>
+     *   <li>ALLOWED_HOSTS=localhost,172.30.1.26 → http://localhost:5005, http://172.30.1.26:5005</li>
+     * </ul>
      *
      * <p>설정된 정책:</p>
      * <ul>
-     *   <li>허용 오리진: http://localhost:5005 (정확한 오리진 명시)</li>
+     *   <li>허용 오리진: 환경변수 기반 동적 생성</li>
      *   <li>허용 메서드: GET, POST, PUT, DELETE, PATCH, OPTIONS</li>
      *   <li>허용 헤더: 모든 헤더 (*)</li>
      *   <li>노출 헤더: Set-Cookie, Authorization (브라우저 접근용)</li>
@@ -50,14 +79,23 @@ public class CorsConfig {
      *   <li>프리플라이트 캐시: 3600초 (1시간)</li>
      * </ul>
      *
-     * @return 설정된 CORS 정책이 적용된 CorsConfigurationSource
+     * @return 환경변수 기반으로 설정된 CorsConfigurationSource
      */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration conf = new CorsConfiguration();
 
-        // 정확한 오리진만 명시 (와일드카드 지양으로 보안 강화)
-        conf.setAllowedOrigins(List.of("http://localhost:5005"));
+        // 환경변수에서 허용된 호스트 목록을 읽어와 동적으로 오리진 생성
+        String[] allowedHosts = allowedHostsStr.split(",");
+        List<String> allowedOrigins = Arrays.stream(allowedHosts)
+                .flatMap(host -> Stream.of(
+                        String.format("http://%s:%s", host.trim(), frontendPort),
+                        String.format("https://%s:%s", host.trim(), frontendPort)
+                ))
+                .collect(Collectors.toList());
+
+        // 동적으로 생성된 오리진 목록 설정
+        conf.setAllowedOrigins(allowedOrigins);
 
         // 허용할 HTTP 메서드 (RESTful API 지원)
         conf.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
@@ -78,6 +116,9 @@ public class CorsConfig {
         // 모든 경로에 CORS 설정 적용
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", conf);
+
+        // 설정된 오리진 목록 로깅 (디버깅용)
+        log.info("CORS 허용 Origins: {}", allowedOrigins);
 
         return source;
     }
